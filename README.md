@@ -61,3 +61,22 @@ between the original and the cut-out. It needs two free models, both used locall
       curl -L -o models/u2net.onnx https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx
 
 Without these, adding pieces still works; the cut-out choice just doesn't appear.
+
+### Try on (beta)
+
+Shows an outfit on a person's own full-body photo, using CatVTON (Stable Diffusion inpainting) on this computer.
+It is switched on only for admins and the users in `WARDROBE_BETA_USERS` (see `WARDROBE_FEATURES` in settings).
+It takes about 5 minutes per garment on an Apple M-series Mac, one job at a time. One-time setup, about 4.5 GB:
+
+    .venv-ml/bin/python -m pip install diffusers accelerate safetensors huggingface_hub
+    git clone --depth 1 https://github.com/Zheng-Chong/CatVTON.git models/tryon/CatVTON-code
+    .venv-ml/bin/python - <<'PY'
+    from huggingface_hub import snapshot_download
+    snapshot_download('zhengchong/CatVTON', local_dir='models/tryon/CatVTON-weights', allow_patterns=['mix-48k-1024/*'])
+    snapshot_download('booksforcharlie/stable-diffusion-inpainting', local_dir='models/tryon/sd-inpainting',
+                      ignore_patterns=['safety_checker/*', '*.ckpt', '*.fp16.*', '*.onnx', '*.msgpack', '*.h5'])
+    PY
+    touch models/tryon/READY
+
+CatVTON's weights are licensed CC BY-NC-SA 4.0 (non-commercial). The body mask comes from the same Segformer clothes
+parser the cut-outs use, since CatVTON's own masker needs detectron2.

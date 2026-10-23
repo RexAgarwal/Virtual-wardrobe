@@ -5,7 +5,7 @@
 <h1>{{ job.outfit.name }}</h1>
 <p class="sub">
   {% if job.status == 'queued' %}Waiting for its turn. This page refreshes by itself.
-  {% elif job.status == 'running' %}Dressing you now. This can take a few minutes, and the page refreshes by itself.
+  {% elif job.status == 'running' %}Dressing you now. It takes about 5 minutes for each garment (a top and a bottom is around 10), and the page refreshes by itself. You can leave this page and come back from Try on.
   {% elif job.status == 'done' %}Here&rsquo;s the outfit on you. It&rsquo;s an AI picture, so details like logos can look a little off.
   {% else %}That didn&rsquo;t work: {{ job.message }}{% endif %}
 </p>
