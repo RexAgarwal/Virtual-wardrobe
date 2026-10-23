@@ -136,3 +136,31 @@ class AccountIsolation(TestCase):
         r = self.as_(self.bo).post('/fit-check/add/', {'token': 'a' * 32, 'keep': ['0']})
         self.assertRedirects(r, '/fit-check/', fetch_redirect_response=False)
         self.assertEqual(self.bo.items.count(), 0)
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+class StyleMe(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('sam', password='pw-sam-12345')
+        self.client.force_login(self.user)
+
+    def add(self, name, category, color='White'):
+        item = Item(owner=self.user, name=name, category=category, color=color)
+        item.photo.save('t.png', png())
+        return item
+
+    def test_tops_and_accessories_still_get_looks_and_a_hint(self):
+        self.add('Tee', 'top')
+        self.add('Watch', 'accessory', 'Gold')
+        r = self.client.get('/outfits/generate/')
+        self.assertContains(r, 'Tee')
+        self.assertContains(r, 'a bottom or a dress')
+
+    def test_complete_wardrobe_has_no_hint(self):
+        for n, c in (('Tee', 'top'), ('Jeans', 'bottom'), ('Sneakers', 'shoes')):
+            self.add(n, c, 'Black')
+        self.assertNotContains(self.client.get('/outfits/generate/'), 'for complete outfits')
+
+    def test_accessories_alone_explain_what_to_add(self):
+        self.add('Watch', 'accessory')
+        self.assertContains(self.client.get('/outfits/generate/'), 'Add a few clothes first')

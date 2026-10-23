@@ -158,9 +158,9 @@ def outfit_surprise(request):
 def outfit_generate(request):
     season = request.GET.get('season', '')
     formality = int(request.GET['formality']) if request.GET.get('formality', '').isdigit() else None
-    combos = generator.suggest(request.user, 6, season=season, occasion_formality=formality)
+    combos, missing = generator.suggest(request.user, 6, season=season, occasion_formality=formality)
     return render(request, 'closet/generate.html', {
-        'combos': combos, 'season': season, 'formality': formality,
+        'combos': combos, 'missing': missing, 'season': season, 'formality': formality,
         'seasons': Item.Season.choices, 'nav': 'generate',
         'occasions': Outfit.Occasion.choices,
     })
