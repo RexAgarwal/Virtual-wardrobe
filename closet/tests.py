@@ -5,6 +5,8 @@ from io import BytesIO
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
+from unittest import mock
+
 from django.test import TestCase, override_settings
 from PIL import Image
 
@@ -164,3 +166,82 @@ class StyleMe(TestCase):
     def test_accessories_alone_explain_what_to_add(self):
         self.add('Watch', 'accessory')
         self.assertContains(self.client.get('/outfits/generate/'), 'Add a few clothes first')
+
+
+def fake_cutout(jobs):
+    img = Image.new('RGBA', (30, 40), (10, 20, 30, 255))
+    img.paste((0, 0, 0, 0), (0, 0, 10, 10))  # a transparent corner, like a real cut-out
+    return [img.copy() for _ in jobs]
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+class PictureChoice(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('pia', password='pw-pia-12345')
+        self.other = User.objects.create_user('quin', password='pw-quin-12345')
+        self.client.force_login(self.user)
+        patcher = mock.patch.multiple('closet.views.cutout', available=lambda: True, cut_out=fake_cutout)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def add_piece(self):
+        return self.client.post('/items/new/', {
+            'name': 'Tee', 'photo': png(), 'category': 'top', 'season': 'all', 'formality': 2, 'status': 'active'})
+
+    def test_adding_a_piece_offers_the_choice_and_keeps_the_original_by_default(self):
+        r = self.add_piece()
+        item = Item.objects.get(name='Tee')
+        self.assertRedirects(r, f'/items/{item.pk}/picture/', fetch_redirect_response=False)
+        self.assertTrue(item.other_photo)
+        self.assertFalse(item.photo_is_cutout)
+        self.assertContains(self.client.get(f'/items/{item.pk}/picture/'), 'Use the cut-out')
+
+    def test_choosing_the_cutout_swaps_the_pictures_and_can_swap_back(self):
+        self.add_piece()
+        item = Item.objects.get(name='Tee')
+        original, cut = item.photo.name, item.other_photo.name
+        self.client.post(f'/items/{item.pk}/picture/', {'use': 'other'})
+        item.refresh_from_db()
+        self.assertEqual((item.photo.name, item.other_photo.name, item.photo_is_cutout), (cut, original, True))
+        self.client.post(f'/items/{item.pk}/picture/', {'use': 'other'})
+        item.refresh_from_db()
+        self.assertEqual((item.photo.name, item.photo_is_cutout), (original, False))
+
+    def test_cutouts_keep_transparency(self):
+        self.add_piece()
+        item = Item.objects.get(name='Tee')
+        alt = Image.open(item.other_photo.path)
+        self.assertEqual(alt.format, 'WEBP')
+        self.assertIn('A', alt.getbands())
+
+    def test_both_pictures_are_private_to_the_owner(self):
+        self.add_piece()
+        item = Item.objects.get(name='Tee')
+        self.assertEqual(self.client.get(item.other_photo.url).status_code, 200)
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.get(item.other_photo.url).status_code, 404)
+        self.assertEqual(self.client.get(f'/items/{item.pk}/picture/').status_code, 404)
+        self.assertEqual(self.client.post(f'/items/{item.pk}/cutout/').status_code, 404)
+
+    def test_failed_cutout_just_saves_the_piece(self):
+        with mock.patch('closet.views.cutout.cut_out', lambda jobs: [None] * len(jobs)):
+            r = self.add_piece()
+        item = Item.objects.get(name='Tee')
+        self.assertRedirects(r, f'/items/{item.pk}/', fetch_redirect_response=False)
+        self.assertFalse(item.other_photo)
+
+    def test_make_cutout_later_from_the_piece_page(self):
+        with mock.patch('closet.views.cutout.cut_out', lambda jobs: [None] * len(jobs)):
+            self.add_piece()
+        item = Item.objects.get(name='Tee')
+        self.assertContains(self.client.get(f'/items/{item.pk}/'), 'Make a cut-out')
+        r = self.client.post(f'/items/{item.pk}/cutout/')
+        self.assertRedirects(r, f'/items/{item.pk}/picture/', fetch_redirect_response=False)
+
+    def test_removing_a_piece_removes_both_files(self):
+        self.add_piece()
+        item = Item.objects.get(name='Tee')
+        paths = [item.photo.path, item.other_photo.path]
+        self.client.post(f'/items/{item.pk}/delete/')
+        import os
+        self.assertFalse(any(os.path.exists(p) for p in paths))

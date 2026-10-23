@@ -10,3 +10,4 @@ media/*
 server.log
 ngrok.log
 .DS_Store
+models/

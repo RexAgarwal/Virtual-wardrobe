@@ -10,7 +10,12 @@
   <ul class="found">
     {% for p in pieces %}
     <li class="tile">
-      <img src="{{ p.url }}" alt="{{ p.name }}">
+      {% if p.cut_url %}
+      <div class="versions">
+        <label class="ver"><input type="radio" name="pick_{{ p.n }}" value="cut" checked><img class="clear" src="{{ p.cut_url }}" alt="Cut-out"><span>Cut-out</span></label>
+        <label class="ver"><input type="radio" name="pick_{{ p.n }}" value="orig"><img src="{{ p.url }}" alt="Original crop"><span>Original</span></label>
+      </div>
+      {% else %}<img src="{{ p.url }}" alt="{{ p.name }}">{% endif %}
       <div class="body">
         <label class="keep"><input type="checkbox" name="keep" value="{{ p.n }}" checked> Add this</label>
         <input name="name_{{ p.n }}" value="{{ p.name }}" aria-label="Name">

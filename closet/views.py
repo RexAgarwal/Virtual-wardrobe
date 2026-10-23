@@ -17,9 +17,52 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from PIL import Image, UnidentifiedImageError
 
-from . import fitcheck, generator, weather
+from . import cutout, fitcheck, generator, weather
 from .forms import ItemForm, OutfitForm, TripForm
 from .models import Item, Outfit, PackItem, PlannedOutfit, Trip, WearLog
+
+
+def _offer_cutout(item):
+    """Make a background-free version of the item's picture and keep it as the alternative. True if made."""
+    if not cutout.available():
+        return False
+    try:
+        image = Image.open(item.photo)
+        image.load()
+    except OSError:
+        return False
+    result = cutout.cut_out([(image, item.category)])[0]
+    if result is None:
+        return False
+    buf = BytesIO()
+    result.save(buf, 'WEBP', quality=88)
+    if item.other_photo:
+        item.other_photo.delete(save=False)
+    item.other_photo.save(f'{Path(item.photo.name).stem}-alt.webp', ContentFile(buf.getvalue()))
+    return True
+
+
+def item_photo(request, pk):
+    """Choose between the original picture and its cut-out."""
+    item = get_object_or_404(Item, pk=pk, owner=request.user)
+    if not item.other_photo:
+        return redirect(item)
+    if request.method == 'POST':
+        if request.POST.get('use') == 'other':
+            Item.objects.filter(pk=item.pk).update(
+                photo=item.other_photo.name, other_photo=item.photo.name, photo_is_cutout=not item.photo_is_cutout)
+            messages.success(request, 'Picture updated.')
+        return redirect(item)
+    return render(request, 'closet/item_photo.html', {'item': item, 'nav': 'items'})
+
+
+@require_POST
+def item_make_cutout(request, pk):
+    item = get_object_or_404(Item, pk=pk, owner=request.user)
+    if _offer_cutout(item):
+        return redirect('closet:item_photo', pk=item.pk)
+    messages.error(request, 'Could not make a cut-out for this picture.')
+    return redirect(item)
 
 
 def item_list(request):
@@ -54,6 +97,9 @@ def item_create(request):
         item = form.save(commit=False)
         item.owner = request.user
         item.save()
+        if _offer_cutout(item):
+            messages.success(request, f'Added {item.name}. Choose which picture to keep.')
+            return redirect('closet:item_photo', pk=item.pk)
         messages.success(request, f'Added {item.name}.')
         return redirect(item)
     return render(request, 'closet/item_form.html', {'form': form, 'title': 'Add an item'})
@@ -64,6 +110,15 @@ def item_edit(request, pk):
     form = ItemForm(request.POST or None, request.FILES or None, instance=item)
     if form.is_valid():
         form.save()
+        if 'photo' in form.changed_data:  # a new picture makes the old alternative stale
+            if item.other_photo:
+                item.other_photo.delete(save=False)
+            item.other_photo = ''
+            item.photo_is_cutout = False
+            item.save()
+            if _offer_cutout(item):
+                messages.success(request, 'Saved. Choose which picture to keep.')
+                return redirect('closet:item_photo', pk=item.pk)
         messages.success(request, 'Saved.')
         return redirect(item)
     return render(request, 'closet/item_form.html', {'form': form, 'item': item, 'title': item.name})
@@ -73,6 +128,8 @@ def item_edit(request, pk):
 def item_delete(request, pk):
     item = get_object_or_404(Item, pk=pk, owner=request.user)
     item.photo.delete(save=False)
+    if item.other_photo:
+        item.other_photo.delete(save=False)
     item.delete()
     messages.success(request, f'Removed {item.name}.')
     return redirect('closet:item_list')
@@ -338,6 +395,11 @@ def _fitcheck_review(request, image, found):
         crop = fitcheck.crop(image, raw['box'])
         crop.save(folder / f'{n}.jpg', 'JPEG', quality=90)
         pieces.append({'n': n, **fitcheck.clean(raw), 'url': f'{settings.MEDIA_URL}fitcheck/{token}/{n}.jpg'})
+    crops = [Image.open(folder / f'{p["n"]}.jpg') for p in pieces]
+    for piece, result in zip(pieces, cutout.cut_out([(c, p['category']) for c, p in zip(crops, pieces)])):
+        if result is not None:
+            result.save(folder / f'{piece["n"]}_cut.png')
+            piece['cut_url'] = f'{settings.MEDIA_URL}fitcheck/{token}/{piece["n"]}_cut.png'
     return render(request, 'closet/fitcheck_review.html', {
         'nav': 'fitcheck', 'token': token, 'pieces': pieces, 'categories': Item.Category.choices})
 
@@ -358,8 +420,13 @@ def fitcheck_add(request):
             'name': request.POST.get(f'name_{key}'), 'category': request.POST.get(f'category_{key}'),
             'color': request.POST.get(f'color_{key}'), 'brand': request.POST.get(f'brand_{key}'),
             'formality': request.POST.get(f'formality_{key}'), 'tags': request.POST.get(f'tags_{key}')})
-        item = Item(owner=request.user, **fields)
-        item.photo.save(f'{token[:8]}-{key}.jpg', ContentFile((folder / f'{key}.jpg').read_bytes()))
+        orig, cut = folder / f'{key}.jpg', folder / f'{key}_cut.png'
+        use_cut = cut.is_file() and request.POST.get(f'pick_{key}', 'cut') == 'cut'
+        main, other = (cut, orig) if use_cut else (orig, cut if cut.is_file() else None)
+        item = Item(owner=request.user, photo_is_cutout=use_cut, **fields)
+        item.photo.save(f'{token[:8]}-{key}{main.suffix}', ContentFile(main.read_bytes()))
+        if other:
+            item.other_photo.save(f'{token[:8]}-{key}-alt{other.suffix}', ContentFile(other.read_bytes()))
         added.append(item)
     shutil.rmtree(folder, ignore_errors=True)
     request.session['fitcheck_tokens'] = [t for t in request.session.get('fitcheck_tokens', []) if t != token]
@@ -390,7 +457,7 @@ def media(request, path):
     if parts[0] == 'fitcheck':
         allowed = len(parts) == 3 and parts[1] in request.session.get('fitcheck_tokens', [])
     else:
-        allowed = request.user.items.filter(photo=path).exists()
+        allowed = request.user.items.filter(Q(photo=path) | Q(other_photo=path)).exists()
     if not allowed:
         raise Http404
     return serve(request, path, document_root=settings.MEDIA_ROOT)

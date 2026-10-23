@@ -31,6 +31,9 @@ class Item(models.Model):
     name = models.CharField(max_length=120)
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='items')
     photo = models.ImageField(upload_to='items/%Y/%m/')
+    # The other version of the picture (original or cut-out), kept so the owner can switch
+    other_photo = models.ImageField(upload_to='items/%Y/%m/', blank=True)
+    photo_is_cutout = models.BooleanField(default=False)
     category = models.CharField(max_length=20, choices=Category.choices)
     color = models.CharField(max_length=40, blank=True)
     season = models.CharField(max_length=20, choices=Season.choices, default=Season.ALL)
@@ -67,13 +70,16 @@ class Item(models.Model):
         return None
 
     def save(self, *args, **kwargs):
-        if self.photo and not self.photo.name.endswith('.webp'):
-            self.photo = self._shrink(self.photo)
+        for field in ('photo', 'other_photo'):
+            f = getattr(self, field)
+            if f and not f.name.endswith('.webp'):
+                setattr(self, field, self._shrink(f))
         super().save(*args, **kwargs)
 
     @staticmethod
     def _shrink(uploaded):
-        img = ImageOps.exif_transpose(Image.open(uploaded)).convert('RGB')
+        img = ImageOps.exif_transpose(Image.open(uploaded))
+        img = img.convert('RGBA' if 'A' in img.getbands() or img.mode == 'P' else 'RGB')  # cut-outs keep transparency
         img.thumbnail((settings.WARDROBE_IMAGE_MAX,) * 2)
         buf = BytesIO()
         img.save(buf, 'WEBP', quality=82)

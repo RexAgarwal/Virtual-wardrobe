@@ -9,6 +9,11 @@ A personal digital closet. Photograph the clothes you own, build outfits from th
 - Search and filter by category, season, status (in wardrobe, laundry, stored, donated) or text.
 - Each piece shows how often it has been worn and its cost per wear.
 
+**Cut-outs**
+- When you add a piece, the app also makes a version with the background removed and lets you choose the original or the cut-out. You can switch any time, and make a cut-out later for older pieces.
+- Works on photos of a single item and on photos of you wearing it (it removes the background and your skin). Parts hidden behind an arm or hand stay missing.
+- Runs on your own computer with free models.
+
 **Outfits**
 - Pick pieces and save them as an outfit with an occasion (everyday, work, evening, special, travel, active).
 - Log "wore this" on any date to keep a wear history.
@@ -42,6 +47,5 @@ Beige and royal-blue design with gold details and elegant serif headings. Layout
 `./share.sh` makes a public link from your computer using a free ngrok tunnel. Creating an account on the shared link needs an invite code, and the link only works while your computer is on and the script is running.
 
 ## Not included yet
-- Automatic background removal on photos.
 - Brand reading from photos.
 - Always-on hosting (needs a paid server for Fit check).

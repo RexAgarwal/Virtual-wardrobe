@@ -26,6 +26,8 @@
     <div class="actions">
       <a class="btn" href="{% url 'closet:item_edit' item.pk %}">Edit</a>
       <a class="btn" href="{% url 'closet:outfit_create' %}?items={{ item.pk }}">Build an outfit around it</a>
+      {% if item.other_photo %}<a class="btn" href="{% url 'closet:item_photo' item.pk %}">Switch picture</a>
+      {% else %}<form method="post" action="{% url 'closet:item_make_cutout' item.pk %}">{% csrf_token %}<button class="btn">Make a cut-out</button></form>{% endif %}
       <form method="post" action="{% url 'closet:item_delete' item.pk %}" onsubmit="return confirm('Remove {{ item.name|escapejs }} and its photo?')">{% csrf_token %}<button class="btn danger">Remove</button></form>
     </div>
   </div>

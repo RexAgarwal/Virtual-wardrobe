@@ -44,7 +44,20 @@ It runs on this computer with the OWLv2 model; no API key and no upload.
 One-time setup (PyTorch has no build for Python 3.15, so it lives in its own 3.14 environment):
 
     /opt/homebrew/bin/python3.14 -m venv .venv-ml
-    .venv-ml/bin/python -m pip install torch transformers pillow scipy
+    .venv-ml/bin/python -m pip install torch transformers pillow scipy onnxruntime numpy
 
 The model (about 600 MB) downloads on first use. To use the Claude vision API instead, set
 `WARDROBE_DETECTOR=claude` and `ANTHROPIC_API_KEY`.
+
+### Cut-outs (background removal)
+
+When someone adds a piece, the app also makes a version with the background removed and lets them choose
+between the original and the cut-out. It needs two free models, both used locally:
+
+- Clothes model for photos of a person wearing the piece (about 110 MB). It downloads from Hugging Face the first time it runs.
+- U2-Net background remover for photos of a single item (about 176 MB). Download it once into `models/`:
+
+      mkdir -p models
+      curl -L -o models/u2net.onnx https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx
+
+Without these, adding pieces still works; the cut-out choice just doesn't appear.

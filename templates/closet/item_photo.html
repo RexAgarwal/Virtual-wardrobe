@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Choose a picture{% endblock %}
+{% block content %}
+<h1>Which picture do you want?</h1>
+<p class="sub">{{ item.name }}. You can switch back any time from the piece&rsquo;s page.</p>
+
+<form method="post" class="choose">
+  {% csrf_token %}
+  <section class="pick-card {% if item.photo_is_cutout %}{% else %}current{% endif %}">
+    <img src="{% if item.photo_is_cutout %}{{ item.other_photo.url }}{% else %}{{ item.photo.url }}{% endif %}" alt="Original picture">
+    <h2>Original</h2>
+    {% if item.photo_is_cutout %}<button class="btn" name="use" value="other">Use the original</button>
+    {% else %}<span class="chip">In use</span>{% endif %}
+  </section>
+  <section class="pick-card clear {% if item.photo_is_cutout %}current{% endif %}">
+    <img src="{% if item.photo_is_cutout %}{{ item.photo.url }}{% else %}{{ item.other_photo.url }}{% endif %}" alt="Cut-out picture">
+    <h2>Cut-out</h2>
+    {% if item.photo_is_cutout %}<span class="chip">In use</span>
+    {% else %}<button class="btn primary" name="use" value="other">Use the cut-out</button>{% endif %}
+  </section>
+</form>
+<p class="sub">The cut-out removes the background, and your skin if you were wearing the piece. Parts hidden behind an arm or hand stay missing.</p>
+<div class="actions"><a class="btn quiet" href="{{ item.get_absolute_url }}">Keep it as it is</a></div>
+{% endblock %}
