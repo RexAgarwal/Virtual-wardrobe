@@ -11,7 +11,7 @@ A personal digital closet. Photograph the clothes you own, build outfits from th
 
 **Cut-outs**
 - When you add a piece, the app also makes a version with the background removed and lets you choose the original or the cut-out. You can switch any time, and make a cut-out later for older pieces.
-- Works on photos of a single item and on photos of you wearing it (it removes the background and your skin). Parts hidden behind an arm or hand stay missing.
+- Works on photos of a single item and on photos of you wearing it (it removes the background and your skin). Where an arm or hand covered a worn piece, the gap is filled in by estimating the fabric around it, so that part is approximate.
 - Runs on your own computer with free models.
 
 **Outfits**

@@ -19,6 +19,9 @@
     {% else %}<button class="btn primary" name="use" value="other">Use the cut-out</button>{% endif %}
   </section>
 </form>
-<p class="sub">The cut-out removes the background, and your skin if you were wearing the piece. Parts hidden behind an arm or hand stay missing.</p>
-<div class="actions"><a class="btn quiet" href="{{ item.get_absolute_url }}">Keep it as it is</a></div>
+<p class="sub">The cut-out removes the background, and your skin if you were wearing the piece. Where an arm or hand covered the piece, the gap is filled in by estimating the fabric around it, so that part is approximate.</p>
+<div class="actions">
+  <a class="btn quiet" href="{{ item.get_absolute_url }}">Keep it as it is</a>
+  <form method="post" action="{% url 'closet:item_make_cutout' item.pk %}">{% csrf_token %}<button class="btn quiet">Redo the cut-out</button></form>
+</div>
 {% endblock %}

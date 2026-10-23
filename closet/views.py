@@ -23,11 +23,16 @@ from .models import Item, Outfit, PackItem, PlannedOutfit, Trip, WearLog
 
 
 def _offer_cutout(item):
-    """Make a background-free version of the item's picture and keep it as the alternative. True if made."""
+    """Make (or remake) the background-free version of an item's picture. True if made.
+
+    It is always cut from the original picture. A first cut-out is kept as the alternative; remaking one that is
+    currently in use replaces it in place.
+    """
     if not cutout.available():
         return False
+    using_cutout = item.photo_is_cutout and bool(item.other_photo)
     try:
-        image = Image.open(item.photo)
+        image = Image.open(item.other_photo if using_cutout else item.photo)
         image.load()
     except OSError:
         return False
@@ -36,9 +41,11 @@ def _offer_cutout(item):
         return False
     buf = BytesIO()
     result.save(buf, 'WEBP', quality=88)
-    if item.other_photo:
-        item.other_photo.delete(save=False)
-    item.other_photo.save(f'{Path(item.photo.name).stem}-alt.webp', ContentFile(buf.getvalue()))
+    target = item.photo if using_cutout else item.other_photo
+    stem = Path((item.other_photo if using_cutout else item.photo).name).stem
+    if target:
+        target.delete(save=False)
+    target.save(f'{stem}-cut.webp', ContentFile(buf.getvalue()))
     return True
 
 

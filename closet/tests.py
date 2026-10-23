@@ -245,3 +245,19 @@ class PictureChoice(TestCase):
         self.client.post(f'/items/{item.pk}/delete/')
         import os
         self.assertFalse(any(os.path.exists(p) for p in paths))
+
+    def test_redoing_the_cutout_replaces_only_the_cutout_and_keeps_the_original(self):
+        self.add_piece()
+        item = Item.objects.get(name='Tee')
+        original = item.photo.name
+        self.client.post(f'/items/{item.pk}/cutout/')
+        item.refresh_from_db()
+        self.assertEqual(item.photo.name, original)
+        self.assertTrue(item.other_photo)
+        self.client.post(f'/items/{item.pk}/picture/', {'use': 'other'})  # now the cut-out is in use
+        item.refresh_from_db()
+        kept_original = item.other_photo.name
+        self.client.post(f'/items/{item.pk}/cutout/')
+        item.refresh_from_db()
+        self.assertEqual(item.other_photo.name, kept_original)
+        self.assertTrue(item.photo_is_cutout)
