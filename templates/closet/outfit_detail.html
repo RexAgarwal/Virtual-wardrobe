@@ -4,6 +4,19 @@
 <h1>{{ outfit.name }}</h1>
 <p class="sub">{{ outfit.get_occasion_display }}{% if outfit.last_worn %}, last worn {{ outfit.last_worn|date:'j M Y' }}{% else %}, not worn yet{% endif %}</p>
 
+{% if has_board %}
+<section class="board" aria-label="Outfit view">
+  <div class="side">{% for i in board.left %}<a href="{{ i.get_absolute_url }}" title="{{ i.name }}"><img src="{{ i.photo.url }}" alt="{{ i.name }}"></a>{% endfor %}</div>
+  <div class="centre">{% for i in board.centre %}<a href="{{ i.get_absolute_url }}" title="{{ i.name }}"><img src="{{ i.photo.url }}" alt="{{ i.name }}"></a>{% endfor %}</div>
+  <div class="side">{% for i in board.right %}<a href="{{ i.get_absolute_url }}" title="{{ i.name }}"><img src="{{ i.photo.url }}" alt="{{ i.name }}"></a>{% endfor %}</div>
+</section>
+<p class="sub">Outfit view: your cut-outs stacked as a figure. It&rsquo;s a styled preview, not a photo of you wearing it.
+{% if board.left_out %}Pieces without a cut-out aren&rsquo;t shown here:
+{% for i in board.left_out %}<a class="links" href="{{ i.get_absolute_url }}">{{ i.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}</p>
+{% elif outfit.items.exists %}
+<p class="sub">Make cut-outs for these pieces to see the whole outfit stacked as a figure. Open a piece and tap &ldquo;Make a cut-out&rdquo;.</p>
+{% endif %}
+
 <ul class="grid lineup">
   {% for item in outfit.items.all %}
   <li class="tile"><a href="{{ item.get_absolute_url }}">

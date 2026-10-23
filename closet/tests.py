@@ -261,3 +261,48 @@ class PictureChoice(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.other_photo.name, kept_original)
         self.assertTrue(item.photo_is_cutout)
+
+
+@override_settings(MEDIA_ROOT=MEDIA)
+class OutfitView(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('ola', password='pw-ola-12345')
+        self.client.force_login(self.user)
+
+    def piece(self, name, category, cutout):
+        item = Item(owner=self.user, name=name, category=category, photo_is_cutout=cutout)
+        item.photo.save('t.png', png())
+        return item
+
+    def outfit(self, *items):
+        o = Outfit.objects.create(owner=self.user, name='Look')
+        o.items.set(items)
+        return o
+
+    def test_cutouts_are_stacked_and_plain_photos_are_listed_separately(self):
+        o = self.outfit(self.piece('Tee', 'top', True), self.piece('Jeans', 'bottom', True),
+                        self.piece('Loafers', 'shoes', False))
+        r = self.client.get(f'/outfits/{o.pk}/')
+        self.assertContains(r, 'class="board"')
+        self.assertEqual([i.name for i in r.context['board']['centre']], ['Tee', 'Jeans'])
+        self.assertEqual([i.name for i in r.context['board']['left_out']], ['Loafers'])
+        self.assertContains(r, 'aren&rsquo;t shown here')
+
+    def test_order_is_top_bottom_shoes_and_layers_sit_beside(self):
+        o = self.outfit(self.piece('Boots', 'shoes', True), self.piece('Coat', 'outerwear', True),
+                        self.piece('Skirt', 'bottom', True), self.piece('Tee', 'top', True),
+                        self.piece('Watch', 'accessory', True))
+        b = self.client.get(f'/outfits/{o.pk}/').context['board']
+        self.assertEqual([i.name for i in b['centre']], ['Tee', 'Skirt', 'Boots'])
+        self.assertEqual([i.name for i in b['left']], ['Coat'])
+        self.assertEqual([i.name for i in b['right']], ['Watch'])
+
+    def test_a_dress_takes_the_top_slot(self):
+        o = self.outfit(self.piece('Dress', 'dress', True), self.piece('Tee', 'top', True))
+        self.assertEqual(len(self.client.get(f'/outfits/{o.pk}/').context['board']['centre']), 1)
+
+    def test_no_cutouts_means_no_board_and_a_hint(self):
+        o = self.outfit(self.piece('Tee', 'top', False))
+        r = self.client.get(f'/outfits/{o.pk}/')
+        self.assertNotContains(r, 'class="board"')
+        self.assertContains(r, 'Make cut-outs for these pieces')

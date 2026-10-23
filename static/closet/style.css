@@ -254,3 +254,12 @@ input[type=checkbox] { width: auto; accent-color: var(--royal); }
 .ver img { aspect-ratio: 3/4; width: 100%; object-fit: contain; background: #fff; }
 .ver:has(input:checked) { outline: 2px solid var(--royal); outline-offset: -2px; }
 .found .tile .versions img { max-height: none; padding: 0; }
+
+/* outfit view: cut-outs stacked as a figure */
+.board { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr); gap: 1rem; align-items: start; justify-items: center;
+  max-width: 760px; margin: 1.2rem 0 .6rem; padding: 1.4rem 1rem; background: radial-gradient(ellipse at 50% 30%, #fff, var(--card) 70%); border: 1px solid rgba(176, 141, 76, .3); border-radius: var(--radius); box-shadow: var(--shadow); }
+.board .centre, .board .side { display: grid; width: 100%; }
+.board .centre a + a { margin-top: -14%; }   /* neighbouring pieces overlap a little, like they would worn */
+.board .side { gap: .6rem; align-content: center; align-self: center; }
+.board img { width: 100%; height: auto; aspect-ratio: 3/4; object-fit: contain; border-radius: 0; filter: drop-shadow(0 6px 8px rgba(27, 29, 51, .18)); }
+@media (max-width: 560px) { .board { grid-template-columns: 1fr 1.6fr 1fr; padding: 1rem .5rem; } }

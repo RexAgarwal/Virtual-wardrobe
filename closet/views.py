@@ -152,9 +152,37 @@ def outfit_list(request):
     })
 
 
+BOARD_ORDER = {'top': 0, 'dress': 0, 'bottom': 1, 'shoes': 2}
+
+
+def _board(items):
+    """Arrange an outfit's cut-outs like a figure: top, bottom and shoes down the middle, layers and extras beside.
+
+    Only pieces whose picture is a cut-out go on the board (a photo with a background would show as a box);
+    the rest are returned separately so the page can offer to make cut-outs for them.
+    """
+    cut = [i for i in items if i.photo_is_cutout]
+    centre = sorted((i for i in cut if i.category in BOARD_ORDER), key=lambda i: BOARD_ORDER[i.category])
+    seen, trimmed = set(), []
+    for i in centre:  # one piece per slot: a dress takes the top slot, so it replaces a top
+        slot = BOARD_ORDER[i.category]
+        if slot not in seen:
+            seen.add(slot)
+            trimmed.append(i)
+    return {
+        'centre': trimmed,
+        'left': [i for i in cut if i.category == 'outerwear'],
+        'right': [i for i in cut if i.category == 'accessory'],
+        'left_out': [i for i in items if not i.photo_is_cutout],
+    }
+
+
 def outfit_detail(request, pk):
     outfit = get_object_or_404(Outfit.objects.prefetch_related('items', 'wears'), pk=pk, owner=request.user)
-    return render(request, 'closet/outfit_detail.html', {'outfit': outfit, 'today': date.today()})
+    board = _board(list(outfit.items.all()))
+    has_board = bool(board['centre'] or board['left'] or board['right'])
+    return render(request, 'closet/outfit_detail.html', {
+        'outfit': outfit, 'today': date.today(), 'board': board, 'has_board': has_board})
 
 
 def outfit_create(request):
