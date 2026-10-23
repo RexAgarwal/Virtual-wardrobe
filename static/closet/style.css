@@ -263,3 +263,14 @@ input[type=checkbox] { width: auto; accent-color: var(--royal); }
 .board .side { gap: .6rem; align-content: center; align-self: center; }
 .board img { width: 100%; height: auto; aspect-ratio: 3/4; object-fit: contain; border-radius: 0; filter: drop-shadow(0 6px 8px rgba(27, 29, 51, .18)); }
 @media (max-width: 560px) { .board { grid-template-columns: 1fr 1.6fr 1fr; padding: 1rem .5rem; } }
+
+/* try on (beta) */
+.beta { font-family: var(--sans); font-style: normal; font-size: .6rem; text-transform: uppercase; letter-spacing: .12em; color: var(--royal-ink); background: var(--gold); border-radius: 2px; padding: .1rem .35rem; vertical-align: middle; }
+.tryon-grid { display: grid; gap: 2rem; grid-template-columns: minmax(0, 360px) 1fr; align-items: start; }
+.person { width: 100%; max-width: 420px; border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 1rem; }
+.person.result { max-width: 520px; }
+.tryons { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.tryons a { display: grid; gap: .3rem; font-size: .9rem; }
+.tryons img, .tryons .ph { width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: var(--radius); background: var(--card); }
+.tryons .ph { display: grid; place-items: center; color: var(--muted); border: 1px dashed var(--line); font-family: var(--serif); font-style: italic; }
+@media (max-width: 700px) { .tryon-grid { grid-template-columns: 1fr; } }

@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Try on{% endblock %}
+{% block content %}
+{% if job.pending %}<meta http-equiv="refresh" content="6">{% endif %}
+<h1>{{ job.outfit.name }}</h1>
+<p class="sub">
+  {% if job.status == 'queued' %}Waiting for its turn. This page refreshes by itself.
+  {% elif job.status == 'running' %}Dressing you now. This can take a few minutes, and the page refreshes by itself.
+  {% elif job.status == 'done' %}Here&rsquo;s the outfit on you. It&rsquo;s an AI picture, so details like logos can look a little off.
+  {% else %}That didn&rsquo;t work: {{ job.message }}{% endif %}
+</p>
+{% if job.result %}<img class="person result" src="{{ job.result.url }}" alt="You in {{ job.outfit.name }}">{% endif %}
+<div class="actions">
+  <a class="btn" href="{{ job.outfit.get_absolute_url }}">Back to the outfit</a>
+  <a class="btn quiet" href="{% url 'closet:tryon' %}">All try-ons</a>
+  <form method="post" action="{% url 'closet:tryon_delete' job.pk %}">{% csrf_token %}<button class="btn quiet">Delete</button></form>
+</div>
+{% endblock %}

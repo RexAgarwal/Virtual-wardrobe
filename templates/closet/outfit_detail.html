@@ -33,6 +33,7 @@
     <input type="date" name="date" value="{{ today|date:'Y-m-d' }}" aria-label="Date worn">
     <button class="btn primary">Wore this</button>
   </form>
+  {% if features.tryon %}<form method="post" action="{% url 'closet:tryon_start' outfit.pk %}">{% csrf_token %}<button class="btn">Try on me <span class="beta">beta</span></button></form>{% endif %}
   <a class="btn" href="{% url 'closet:outfit_edit' outfit.pk %}">Edit</a>
   <form method="post" action="{% url 'closet:outfit_delete' outfit.pk %}" onsubmit="return confirm('Delete this outfit? The pieces stay in your wardrobe.')">{% csrf_token %}<button class="btn danger">Delete</button></form>
 </div>

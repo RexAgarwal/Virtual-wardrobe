@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Try on{% endblock %}
+{% block content %}
+<h1>Try on <span class="beta">beta</span></h1>
+<p class="sub">See an outfit on your own photo. This is an early version, only switched on for a few people.</p>
+
+{% if not ready %}<p class="notice">The try-on model isn&rsquo;t installed on this computer yet, so jobs can&rsquo;t run. Your photo can still be saved.</p>{% endif %}
+
+<div class="tryon-grid">
+  <section>
+    <h2>Your photo</h2>
+    {% if photo %}<img class="person" src="{{ photo.photo.url }}" alt="Your photo">{% endif %}
+    <form method="post" enctype="multipart/form-data" class="stack">
+      {% csrf_token %}
+      <div class="field">
+        <label for="photo">{% if photo %}Replace your photo{% else %}Add a full-body photo{% endif %}</label>
+        <input id="photo" type="file" name="photo" accept="image/*" required>
+        <small>Standing, facing the camera, head to toe, in fitted plain clothes and good light. Only you in the picture. It stays on this computer and is only used for try-on.</small>
+      </div>
+      <div class="actions">
+        <button class="btn primary">Save photo</button>
+        {% if photo %}<button class="btn quiet" name="remove" value="1">Remove it</button>{% endif %}
+      </div>
+    </form>
+  </section>
+  <section>
+    <h2>Your try-ons</h2>
+    {% if jobs %}
+    <ul class="tryons">
+      {% for j in jobs %}
+      <li><a href="{{ j.get_absolute_url }}">
+        {% if j.result %}<img src="{{ j.result.url }}" alt="">{% else %}<span class="ph">{{ j.get_status_display }}</span>{% endif %}
+        <span>{{ j.outfit.name }}</span>
+      </a></li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="sub">Nothing yet. Open an outfit and tap &ldquo;Try on me&rdquo;.</p>{% endif %}
+  </section>
+</div>
+{% endblock %}

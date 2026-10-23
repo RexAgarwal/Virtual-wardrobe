@@ -176,3 +176,35 @@ class PackItem(models.Model):
 
     class Meta:
         unique_together = [('trip', 'item')]
+
+
+class TryOnPhoto(models.Model):
+    """The full-body photo a person uses for virtual try-on. One per account."""
+    owner = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='tryon_photo')
+    photo = models.ImageField(upload_to='tryon/people/')
+    updated = models.DateTimeField(auto_now=True)
+
+
+class TryOn(models.Model):
+    class Status(models.TextChoices):
+        QUEUED = 'queued', 'Waiting'
+        RUNNING = 'running', 'Dressing you'
+        DONE = 'done', 'Ready'
+        FAILED = 'failed', 'Failed'
+
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='tryons')
+    outfit = models.ForeignKey(Outfit, on_delete=models.CASCADE, related_name='tryons')
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.QUEUED)
+    result = models.ImageField(upload_to='tryon/results/', blank=True)
+    message = models.CharField(max_length=300, blank=True)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created']
+
+    @property
+    def pending(self):
+        return self.status in (self.Status.QUEUED, self.Status.RUNNING)
+
+    def get_absolute_url(self):
+        return reverse('closet:tryon_job', args=[self.pk])

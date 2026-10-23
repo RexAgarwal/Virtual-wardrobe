@@ -73,6 +73,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'closet.features.context',
             ],
         },
     },
@@ -161,3 +162,9 @@ LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = 'login'
 WARDROBE_INVITE_CODE = os.environ.get('WARDROBE_INVITE_CODE', '')
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 90
+
+# New features roll out gradually: 'off', 'beta' (admins and WARDROBE_BETA_USERS) or 'all'. See closet/features.py.
+WARDROBE_BETA_USERS = ['Himanshu']
+WARDROBE_FEATURES = {
+    'tryon': 'beta',
+}

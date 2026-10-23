@@ -306,3 +306,124 @@ class OutfitView(TestCase):
         r = self.client.get(f'/outfits/{o.pk}/')
         self.assertNotContains(r, 'class="board"')
         self.assertContains(r, 'Make cut-outs for these pieces')
+
+
+@override_settings(MEDIA_ROOT=MEDIA, WARDROBE_BETA_USERS=['Himanshu'], WARDROBE_FEATURES={'tryon': 'beta'})
+class TryOnRollout(TestCase):
+    def setUp(self):
+        self.him = User.objects.create_user('himanshu', password='pw-him-12345')   # different case on purpose
+        self.boss = User.objects.create_user('boss', password='pw-boss-12345', is_staff=True)
+        self.root = User.objects.create_user('root', password='pw-root-12345', is_superuser=True)
+        self.pal = User.objects.create_user('pal', password='pw-pal-12345')
+
+    def status(self, user, url='/try-on/'):
+        self.client.force_login(user)
+        return self.client.get(url).status_code
+
+    def test_beta_users_and_admins_get_it_everyone_else_gets_a_404(self):
+        self.assertEqual([self.status(u) for u in (self.him, self.boss, self.root)], [200, 200, 200])
+        self.assertEqual(self.status(self.pal), 404)
+
+    def test_the_menu_link_only_shows_for_people_who_have_it(self):
+        self.client.force_login(self.him)
+        self.assertContains(self.client.get('/about/'), 'Try on <span class="beta">')
+        self.client.force_login(self.pal)
+        self.assertNotContains(self.client.get('/about/'), 'Try on <span class="beta">')
+
+    def test_signed_out_people_cannot_reach_it(self):
+        self.assertEqual(self.client.get('/try-on/').status_code, 302)
+
+    def test_rolling_out_to_everyone_or_switching_off(self):
+        with override_settings(WARDROBE_FEATURES={'tryon': 'all'}):
+            self.assertEqual(self.status(self.pal), 200)
+        with override_settings(WARDROBE_FEATURES={'tryon': 'off'}):
+            self.assertEqual(self.status(self.root), 404)
+
+    def test_someone_without_the_feature_cannot_start_a_job_either(self):
+        o = Outfit.objects.create(owner=self.pal, name='x')
+        self.client.force_login(self.pal)
+        self.assertEqual(self.client.post(f'/outfits/{o.pk}/try-on/').status_code, 404)
+
+
+@override_settings(MEDIA_ROOT=MEDIA, WARDROBE_BETA_USERS=['Himanshu'], WARDROBE_FEATURES={'tryon': 'beta'})
+class TryOnFlow(TestCase):
+    def setUp(self):
+        from .models import TryOn  # noqa: F401
+        self.me = User.objects.create_user('himanshu', password='pw-him-12345')
+        self.root = User.objects.create_user('root', password='pw-root-12345', is_superuser=True)
+        self.client.force_login(self.me)
+        self.started = []
+        for patcher in (mock.patch('closet.views.tryon.start', lambda job: self.started.append(job.pk)),
+                        mock.patch('closet.views.tryon.available', lambda: True)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.top = self.piece('Tee', 'top')
+        self.bottom = self.piece('Jeans', 'bottom')
+        self.outfit = Outfit.objects.create(owner=self.me, name='Look')
+        self.outfit.items.set([self.top, self.bottom, self.piece('Shoes', 'shoes')])
+
+    def piece(self, name, category):
+        item = Item(owner=self.me, name=name, category=category)
+        item.photo.save('t.png', png())
+        return item
+
+    def add_photo(self):
+        return self.client.post('/try-on/', {'photo': png('me.png')})
+
+    def test_photo_is_saved_resized_and_private(self):
+        self.add_photo()
+        photo = self.me.tryon_photo
+        self.assertTrue(photo.photo.name.startswith('tryon/people/'))
+        self.assertEqual(self.client.get(photo.photo.url).status_code, 200)
+        self.client.force_login(self.root)
+        self.assertEqual(self.client.get(photo.photo.url).status_code, 404)
+
+    def test_starting_needs_a_photo_first(self):
+        r = self.client.post(f'/outfits/{self.outfit.pk}/try-on/')
+        self.assertRedirects(r, '/try-on/', fetch_redirect_response=False)
+        self.assertEqual(self.started, [])
+
+    def test_starting_makes_a_job_and_runs_it(self):
+        from .models import TryOn
+        self.add_photo()
+        r = self.client.post(f'/outfits/{self.outfit.pk}/try-on/')
+        job = TryOn.objects.get()
+        self.assertRedirects(r, f'/try-on/{job.pk}/', fetch_redirect_response=False)
+        self.assertEqual(self.started, [job.pk])
+        page = self.client.get(f'/try-on/{job.pk}/')
+        self.assertContains(page, 'http-equiv="refresh"')
+
+    def test_jobs_are_private(self):
+        from .models import TryOn
+        self.add_photo()
+        self.client.post(f'/outfits/{self.outfit.pk}/try-on/')
+        job = TryOn.objects.get()
+        self.client.force_login(self.root)
+        self.assertEqual(self.client.get(f'/try-on/{job.pk}/').status_code, 404)
+        self.assertEqual(self.client.post(f'/try-on/{job.pk}/delete/').status_code, 404)
+
+    def test_dresses_and_pairs_pick_the_right_garments(self):
+        from . import tryon
+        self.assertEqual([(i.name, k) for i, k in tryon.garments_for(self.outfit)], [('Tee', 'upper'), ('Jeans', 'lower')])
+        self.outfit.items.add(self.piece('Gown', 'dress'))
+        self.assertEqual([(i.name, k) for i, k in tryon.garments_for(self.outfit)], [('Gown', 'overall')])
+
+    def test_an_outfit_with_nothing_to_wear_is_refused(self):
+        self.add_photo()
+        only_shoes = Outfit.objects.create(owner=self.me, name='Feet')
+        only_shoes.items.set([i for i in self.outfit.items.all() if i.category == 'shoes'])
+        self.client.post(f'/outfits/{only_shoes.pk}/try-on/')
+        self.assertEqual(self.started, [])
+
+    def test_a_missing_model_is_reported_not_crashed(self):
+        from . import tryon
+        from .models import TryOn
+        self.add_photo()
+        job = TryOn.objects.create(owner=self.me, outfit=self.outfit)
+        with mock.patch('closet.tryon.available', lambda: False):
+            try:
+                tryon._generate(job)
+            except RuntimeError as e:
+                self.assertIn('not installed', str(e))
+            else:
+                self.fail('should have raised')

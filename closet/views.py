@@ -17,9 +17,10 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from PIL import Image, UnidentifiedImageError
 
-from . import cutout, fitcheck, generator, weather
+from . import cutout, fitcheck, generator, tryon, weather
+from .features import feature_required
 from .forms import ItemForm, OutfitForm, TripForm
-from .models import Item, Outfit, PackItem, PlannedOutfit, Trip, WearLog
+from .models import Item, Outfit, PackItem, PlannedOutfit, Trip, TryOn, TryOnPhoto, WearLog
 
 
 def _offer_cutout(item):
@@ -489,10 +490,84 @@ def media(request, path):
     from django.http import Http404
     from django.views.static import serve
     parts = path.split('/')
-    if parts[0] == 'fitcheck':
+    if parts[0] == 'tryon':
+        allowed = (TryOnPhoto.objects.filter(owner=request.user, photo=path).exists()
+                   or TryOn.objects.filter(owner=request.user, result=path).exists())
+    elif parts[0] == 'fitcheck':
         allowed = len(parts) == 3 and parts[1] in request.session.get('fitcheck_tokens', [])
     else:
         allowed = request.user.items.filter(Q(photo=path) | Q(other_photo=path)).exists()
     if not allowed:
         raise Http404
     return serve(request, path, document_root=settings.MEDIA_ROOT)
+
+
+# --- Try on (beta) -------------------------------------------------------------------------------------------
+
+@feature_required('tryon')
+def tryon_home(request):
+    photo = TryOnPhoto.objects.filter(owner=request.user).first()
+    if request.method == 'POST':
+        if request.POST.get('remove') and photo:
+            photo.photo.delete(save=False)
+            photo.delete()
+            messages.success(request, 'Your photo was removed.')
+            return redirect('closet:tryon')
+        upload = request.FILES.get('photo')
+        if not upload or upload.size > MAX_UPLOAD:
+            messages.error(request, 'Choose a photo under 15 MB.')
+        else:
+            try:
+                img = Image.open(upload)
+                img.load()
+                from PIL import ImageOps
+                img = ImageOps.exif_transpose(img).convert('RGB')
+            except (UnidentifiedImageError, OSError):
+                messages.error(request, 'That file is not an image I can read.')
+            else:
+                img.thumbnail((1024, 1024))
+                buf = BytesIO()
+                img.save(buf, 'JPEG', quality=92)
+                photo = photo or TryOnPhoto(owner=request.user)
+                if photo.photo:
+                    photo.photo.delete(save=False)
+                photo.photo.save(f'{request.user.pk}.jpg', ContentFile(buf.getvalue()))
+                messages.success(request, 'Saved your photo.')
+                return redirect('closet:tryon')
+    return render(request, 'closet/tryon_home.html', {
+        'nav': 'tryon', 'photo': photo, 'jobs': request.user.tryons.select_related('outfit')[:12],
+        'ready': tryon.available()})
+
+
+@feature_required('tryon')
+@require_POST
+def tryon_start(request, pk):
+    outfit = get_object_or_404(Outfit, pk=pk, owner=request.user)
+    if not TryOnPhoto.objects.filter(owner=request.user).exists():
+        messages.info(request, 'Add a full-body photo of yourself first.')
+        return redirect('closet:tryon')
+    if not tryon.garments_for(outfit):
+        messages.error(request, 'This outfit needs a top, a bottom or a dress to try on.')
+        return redirect(outfit)
+    if not tryon.available():
+        messages.error(request, 'The try-on model is not installed on this computer yet.')
+        return redirect(outfit)
+    job = TryOn.objects.create(owner=request.user, outfit=outfit)
+    tryon.start(job)
+    return redirect(job)
+
+
+@feature_required('tryon')
+def tryon_job(request, pk):
+    job = get_object_or_404(TryOn.objects.select_related('outfit'), pk=pk, owner=request.user)
+    return render(request, 'closet/tryon_job.html', {'nav': 'tryon', 'job': job})
+
+
+@feature_required('tryon')
+@require_POST
+def tryon_delete(request, pk):
+    job = get_object_or_404(TryOn, pk=pk, owner=request.user)
+    if job.result:
+        job.result.delete(save=False)
+    job.delete()
+    return redirect('closet:tryon')
