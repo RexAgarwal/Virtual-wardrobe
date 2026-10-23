@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Fit check{% endblock %}
+{% block content %}
+<h1>We found {{ pieces|length }} piece{{ pieces|length|pluralize }}</h1>
+<p class="sub">Untick anything you don&rsquo;t want. Rename freely, then add them to your wardrobe.</p>
+
+<form method="post" action="{% url 'closet:fitcheck_add' %}" class="stack">
+  {% csrf_token %}
+  <input type="hidden" name="token" value="{{ token }}">
+  <ul class="found">
+    {% for p in pieces %}
+    <li class="tile">
+      <img src="{{ p.url }}" alt="{{ p.name }}">
+      <div class="body">
+        <label class="keep"><input type="checkbox" name="keep" value="{{ p.n }}" checked> Add this</label>
+        <input name="name_{{ p.n }}" value="{{ p.name }}" aria-label="Name">
+        <select name="category_{{ p.n }}" aria-label="Category">
+          {% for v, label in categories %}<option value="{{ v }}" {% if p.category == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+        <input name="color_{{ p.n }}" value="{{ p.color }}" aria-label="Colour" placeholder="Colour">
+        <input type="hidden" name="brand_{{ p.n }}" value="{{ p.brand }}">
+        <input type="hidden" name="formality_{{ p.n }}" value="{{ p.formality }}">
+        <input type="hidden" name="tags_{{ p.n }}" value="{{ p.tags }}">
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  <div class="actions">
+    <button class="btn primary">Add to my wardrobe</button>
+    <a class="btn quiet" href="{% url 'closet:fitcheck' %}">Start over</a>
+  </div>
+</form>
+{% endblock %}

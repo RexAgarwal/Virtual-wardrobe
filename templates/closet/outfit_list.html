@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Outfits{% endblock %}
+{% block content %}
+<section class="toolbar">
+  <nav class="chips">
+    <a href="{% url 'closet:outfit_list' %}" {% if not occasion %}aria-current="page"{% endif %}>All</a>
+    {% for v, label in occasions %}<a href="?occasion={{ v }}" {% if occasion == v %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+  </nav>
+  <a class="btn primary" href="{% url 'closet:outfit_create' %}">Build an outfit</a>
+</section>
+
+{% if outfits %}
+<ul class="outfits">
+  {% for o in outfits %}
+  <li><a href="{{ o.get_absolute_url }}">
+    <div class="collage">{% for i in o.items.all|slice:':4' %}<img src="{{ i.photo.url }}" alt="">{% endfor %}</div>
+    <div class="meta">
+      <strong>{{ o.name }}</strong>
+      <span>{{ o.get_occasion_display }}, {{ o.items.count }} pieces, worn {{ o.wear_total }}×</span>
+    </div>
+  </a></li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty">
+  <p>No outfits {% if occasion %}for this occasion {% endif %}yet. Pick a few pieces from your wardrobe to put one together.</p>
+  <a class="btn primary" href="{% url 'closet:item_list' %}">Go to pieces</a>
+</div>
+{% endif %}
+{% endblock %}

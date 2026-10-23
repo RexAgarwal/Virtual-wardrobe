@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<form method="post" class="stack">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="field"><label for="{{ form.name.id_for_label }}">Trip name</label>{{ form.name }}{{ form.name.errors }}</div>
+  <div class="field"><label for="{{ form.destination.id_for_label }}">Destination</label>{{ form.destination }}</div>
+  <div class="field"><label for="{{ form.start.id_for_label }}">Departing</label>{{ form.start }}{{ form.start.errors }}</div>
+  <div class="field"><label for="{{ form.end.id_for_label }}">Returning</label>{{ form.end }}{{ form.end.errors }}</div>
+
+  <fieldset class="field">
+    <legend>Pieces to bring</legend>
+    <ul class="grid picker">
+      {% for item in pieces %}
+      <li class="tile"><label>
+        <input type="checkbox" name="items" value="{{ item.pk }}" {% if item.pk in selected %}checked{% endif %}>
+        <img src="{{ item.photo.url }}" alt="" loading="lazy">
+        <span class="meta"><strong>{{ item.name }}</strong><span>{{ item.get_category_display }}</span></span>
+      </label></li>
+      {% endfor %}
+    </ul>
+  </fieldset>
+  <div class="actions">
+    <button class="btn primary">Save trip</button>
+    <a class="btn quiet" href="{% if trip %}{{ trip.get_absolute_url }}{% else %}{% url 'closet:trip_list' %}{% endif %}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

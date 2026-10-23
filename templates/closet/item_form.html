@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<form method="post" enctype="multipart/form-data" class="stack">
+  {% csrf_token %}
+  {% if item.photo %}<img class="preview" src="{{ item.photo.url }}" alt="">{% endif %}
+  {{ form.non_field_errors }}
+  {% for field in form %}
+  <div class="field">
+    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+    {{ field }}
+    {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+    {{ field.errors }}
+  </div>
+  {% endfor %}
+  <div class="actions">
+    <button class="btn primary">Save</button>
+    <a class="btn quiet" href="{% if item %}{{ item.get_absolute_url }}{% else %}{% url 'closet:item_list' %}{% endif %}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

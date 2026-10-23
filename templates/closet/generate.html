@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Style me{% endblock %}
+{% block content %}
+<h1>Style me</h1>
+<p class="sub">Fresh combinations from pieces you already own, balanced by colour, season and formality.</p>
+
+<section class="toolbar">
+  <form method="get" class="filters">
+    <select name="season" aria-label="Season">
+      <option value="">Any season</option>
+      {% for v, label in seasons %}<option value="{{ v }}" {% if season == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="formality" aria-label="Dress code">
+      <option value="">Any dress code</option>
+      <option value="1" {% if formality == 1 %}selected{% endif %}>Very casual</option>
+      <option value="2" {% if formality == 2 %}selected{% endif %}>Casual</option>
+      <option value="3" {% if formality == 3 %}selected{% endif %}>Smart</option>
+      <option value="4" {% if formality == 4 %}selected{% endif %}>Dressy</option>
+      <option value="5" {% if formality == 5 %}selected{% endif %}>Formal</option>
+    </select>
+    <button class="btn primary">Shuffle</button>
+  </form>
+</section>
+
+{% if combos %}
+<ul class="combos">
+  {% for combo in combos %}
+  <li class="combo">
+    <div class="strip">{% for i in combo %}<img src="{{ i.photo.url }}" alt="{{ i.name }}" loading="lazy">{% endfor %}</div>
+    <ul>{% for i in combo %}<li>{{ i.name }}</li>{% endfor %}</ul>
+    <form method="post" action="{% url 'closet:outfit_generate_save' %}" class="actions">
+      {% csrf_token %}
+      {% for i in combo %}<input type="hidden" name="items" value="{{ i.pk }}">{% endfor %}
+      <input type="hidden" name="name" value="Look {{ forloop.counter }}, {% now 'j M' %}">
+      <button class="btn primary">Save this look</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty">
+  <p>Not enough pieces to put looks together. Add at least a top and a bottom, or a dress.</p>
+  <a class="btn primary" href="{% url 'closet:item_create' %}">Add a piece</a>
+</div>
+{% endif %}
+{% endblock %}

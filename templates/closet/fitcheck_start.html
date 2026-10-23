@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Fit check{% endblock %}
+{% block content %}
+<h1>Fit check</h1>
+<p class="sub">Snap or upload a photo of yourself in an outfit. We lift each piece out, the tee, the watch, the shoes, and file it in your wardrobe.</p>
+
+{% if not ready %}
+<p class="notice">Fit check needs its local model environment (<code>.venv-ml</code>) before it can look at photos. See the README for the one-time setup.</p>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="stack" id="fc">
+  {% csrf_token %}
+  <div class="field">
+    <label for="photo">Outfit photo</label>
+    <input id="photo" type="file" name="photo" accept="image/*" required>
+    <small>The photo is analysed on this computer and never uploaded. Only the cropped pieces are saved, never the full photo. The first photo takes a little longer while the model warms up.</small>
+  </div>
+  <div class="actions"><button class="btn primary" {% if not ready %}disabled{% endif %}>Lift my pieces</button></div>
+</form>
+<script>
+document.getElementById('fc').addEventListener('submit', e => {
+  const b = e.target.querySelector('button'); b.disabled = true; b.textContent = 'Looking closely…';
+});
+</script>
+{% endblock %}

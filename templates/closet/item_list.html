@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="toolbar">
+  <form method="get" class="filters">
+    <input type="search" name="q" value="{{ filters.q }}" placeholder="Search name, color, brand, tag" aria-label="Search">
+    <select name="category" aria-label="Category">
+      <option value="">Every category</option>
+      {% for v, label in categories %}<option value="{{ v }}" {% if filters.category == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="season" aria-label="Season">
+      <option value="">Any season</option>
+      {% for v, label in seasons %}<option value="{{ v }}" {% if filters.season == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="status" aria-label="Status">
+      <option value="">Any status</option>
+      {% for v, label in statuses %}{% if v != 'gone' %}<option value="{{ v }}" {% if filters.status == v %}selected{% endif %}>{{ label }}</option>{% endif %}{% endfor %}
+    </select>
+    <button class="btn">Filter</button>
+    {% if filters.q or filters.category or filters.season or filters.status %}<a class="btn quiet" href="{% url 'closet:item_list' %}">Clear</a>{% endif %}
+  </form>
+  <p class="count">{{ items.count }} of {{ total }} pieces</p>
+</section>
+
+{% if items %}
+<form method="get" action="{% url 'closet:outfit_create' %}" id="pick">
+<ul class="grid">
+  {% for item in items %}
+  <li class="tile">
+    <label class="pick"><input type="checkbox" name="items" value="{{ item.pk }}"><span>Pick</span></label>
+    <a href="{{ item.get_absolute_url }}">
+      <img src="{{ item.photo.url }}" alt="{{ item.name }}" loading="lazy">
+      <div class="meta">
+        <strong>{{ item.name }}</strong>
+        <span>{{ item.get_category_display }}{% if item.color %}, {{ item.color }}{% endif %}</span>
+      </div>
+    </a>
+    {% if item.status != 'active' %}<span class="badge">{{ item.get_status_display }}</span>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+<div class="pickbar" hidden>
+  <span><b id="pickcount">0</b> picked</span>
+  <button class="btn primary">Build an outfit from these</button>
+</div>
+</form>
+<script>
+const form = document.getElementById('pick'), bar = form.querySelector('.pickbar'), n = document.getElementById('pickcount');
+form.addEventListener('change', () => {
+  const c = form.querySelectorAll('input:checked').length;
+  n.textContent = c; bar.hidden = c === 0;
+});
+</script>
+{% else %}
+<div class="empty">
+  {% if total %}<p>Nothing matches those filters.</p>{% else %}
+  <p>Your wardrobe is empty. Photograph a piece you own and add it to get started.</p>
+  <div class="actions">
+    <a class="btn primary" href="{% url 'closet:item_create' %}">Add your first piece</a>
+    <a class="btn" href="{% url 'closet:fitcheck' %}">Try Fit check</a>
+  </div>
+  <form method="post" action="{% url 'closet:samples' %}">{% csrf_token %}
+    <button class="btn quiet">Or start with sample pieces</button>
+  </form>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

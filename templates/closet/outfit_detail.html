@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}{{ outfit.name }}{% endblock %}
+{% block content %}
+<h1>{{ outfit.name }}</h1>
+<p class="sub">{{ outfit.get_occasion_display }}{% if outfit.last_worn %}, last worn {{ outfit.last_worn|date:'j M Y' }}{% else %}, not worn yet{% endif %}</p>
+
+<ul class="grid lineup">
+  {% for item in outfit.items.all %}
+  <li class="tile"><a href="{{ item.get_absolute_url }}">
+    <img src="{{ item.photo.url }}" alt="{{ item.name }}">
+    <div class="meta"><strong>{{ item.name }}</strong><span>{{ item.get_category_display }}</span></div>
+  </a></li>
+  {% endfor %}
+</ul>
+
+{% if outfit.notes %}<p>{{ outfit.notes|linebreaksbr }}</p>{% endif %}
+
+<div class="actions">
+  <form method="post" action="{% url 'closet:outfit_wore' outfit.pk %}" class="inline">{% csrf_token %}
+    <input type="date" name="date" value="{{ today|date:'Y-m-d' }}" aria-label="Date worn">
+    <button class="btn primary">Wore this</button>
+  </form>
+  <a class="btn" href="{% url 'closet:outfit_edit' outfit.pk %}">Edit</a>
+  <form method="post" action="{% url 'closet:outfit_delete' outfit.pk %}" onsubmit="return confirm('Delete this outfit? The pieces stay in your wardrobe.')">{% csrf_token %}<button class="btn danger">Delete</button></form>
+</div>
+
+{% if outfit.wears.exists %}
+<h2>Worn on</h2>
+<ul class="links">{% for w in outfit.wears.all %}<li>{{ w.date|date:'l, j F Y' }}</li>{% endfor %}</ul>
+{% endif %}
+{% endblock %}

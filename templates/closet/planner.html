@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Week{% endblock %}
+{% block content %}
+<h1>Your week</h1>
+<p class="sub">Decide tonight what you will wear tomorrow.</p>
+
+<div class="weekbar">
+  <a class="btn" href="?start={{ prev|date:'Y-m-d' }}" aria-label="Previous week">&larr; Prev</a>
+  <h2>{{ start|date:'j M' }} &ndash; {{ end|date:'j M Y' }}</h2>
+  <a class="btn quiet" href="{% url 'closet:planner' %}">This week</a>
+  <a class="btn" href="?start={{ next|date:'Y-m-d' }}" aria-label="Next week">Next &rarr;</a>
+</div>
+
+<form method="get" class="citybar">
+  <input type="hidden" name="start" value="{{ start|date:'Y-m-d' }}">
+  <label for="city">Forecast for</label>
+  <input id="city" type="search" name="city" value="{{ city }}" placeholder="Your city, e.g. Manila" autocomplete="off">
+  <button class="btn">Set</button>
+</form>
+{% if city_unknown %}<p class="sub">Couldn't find &ldquo;{{ city }}&rdquo;, or the weather service is unreachable.</p>
+{% elif out_of_range %}<p class="sub">Forecasts reach about two weeks ahead, so this week has none yet.</p>
+{% elif not city %}<p class="sub">Add your city to see the forecast on each day.</p>{% endif %}
+
+<ul class="week">
+  {% for day, plan, wx in rows %}
+  <li class="day {% if day == today %}today{% endif %}">
+    <header><b>{{ day|date:'j' }}</b><span>{{ day|date:'D' }}</span></header>
+    {% if wx %}<p class="wx" title="{{ wx.label }}, {{ wx.rain }}% chance of rain"><span aria-hidden="true">{{ wx.icon }}</span> {{ wx.hi }}&deg; <small>/ {{ wx.lo }}&deg;</small>{% if wx.rain >= 50 %}<em>rain</em>{% endif %}</p>{% endif %}
+    {% if plan %}
+    <a href="{{ plan.outfit.get_absolute_url }}" title="{{ plan.outfit.name }}">
+      <div class="collage">{% for i in plan.outfit.items.all|slice:':4' %}<img src="{{ i.photo.url }}" alt="">{% endfor %}</div>
+    </a>
+    <strong>{{ plan.outfit.name }}</strong>
+    {% else %}
+    <div class="free">Nothing planned</div>
+    {% endif %}
+    <form method="post" action="{% url 'closet:planner_set' %}">
+      {% csrf_token %}
+      <input type="hidden" name="date" value="{{ day|date:'Y-m-d' }}">
+      <select name="outfit" onchange="this.form.submit()" aria-label="Outfit for {{ day|date:'l' }}">
+        <option value="">{% if plan %}Clear{% else %}Choose an outfit{% endif %}</option>
+        {% for o in outfits %}<option value="{{ o.pk }}" {% if plan.outfit_id == o.pk %}selected{% endif %}>{{ o.name }}</option>{% endfor %}
+      </select>
+      <noscript><button class="btn">Set</button></noscript>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+{% if not outfits %}<p class="sub" style="margin-top:1.5rem">No outfits to plan with yet. <a class="links" href="{% url 'closet:outfit_generate' %}">Let Style me suggest some.</a></p>{% endif %}
+{% endblock %}

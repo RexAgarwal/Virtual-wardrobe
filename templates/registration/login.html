@@ -1,0 +1,16 @@
+{% extends 'base_bare.html' %}
+{% block content %}
+<div class="lock">
+  <h1>Welcome back</h1>
+  <p class="sub">Sign in to your wardrobe.</p>
+  <form method="post" class="stack">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next }}">
+    {% if form.errors %}<p class="errorlist" style="padding:0">That username and password don&rsquo;t match. Try again.</p>{% endif %}
+    <input name="username" placeholder="Username" autocomplete="username" autofocus required aria-label="Username">
+    <input type="password" name="password" placeholder="Password" autocomplete="current-password" required aria-label="Password">
+    <button class="btn primary">Sign in</button>
+  </form>
+  <p class="switch">New here? <a href="{% url 'signup' %}">Create an account</a></p>
+</div>
+{% endblock %}

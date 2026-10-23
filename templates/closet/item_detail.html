@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}{{ item.name }}{% endblock %}
+{% block content %}
+<article class="detail">
+  <img src="{{ item.photo.url }}" alt="{{ item.name }}">
+  <div class="facts">
+    <h1>{{ item.name }}</h1>
+    <dl>
+      <dt>Category</dt><dd>{{ item.get_category_display }}</dd>
+      {% if item.color %}<dt>Color</dt><dd>{{ item.color }}</dd>{% endif %}
+      <dt>Season</dt><dd>{{ item.get_season_display }}</dd>
+      <dt>Formality</dt><dd>{{ item.formality }} of 5</dd>
+      {% if item.brand %}<dt>Brand</dt><dd>{{ item.brand }}</dd>{% endif %}
+      {% if item.price %}<dt>Paid</dt><dd>{{ item.price }}</dd>{% endif %}
+      <dt>Status</dt><dd>{{ item.get_status_display }}</dd>
+      <dt>Worn</dt><dd>{{ item.wear_count }} time{{ item.wear_count|pluralize }}{% if item.cost_per_wear %}, {{ item.cost_per_wear|floatformat:0 }} per wear{% endif %}</dd>
+    </dl>
+    {% if item.tag_list %}<p class="tags">{% for t in item.tag_list %}<span>{{ t }}</span>{% endfor %}</p>{% endif %}
+    {% if item.notes %}<p>{{ item.notes|linebreaksbr }}</p>{% endif %}
+
+    {% if item.outfits.exists %}
+    <h2>In these outfits</h2>
+    <ul class="links">{% for o in item.outfits.all %}<li><a href="{{ o.get_absolute_url }}">{{ o.name }}</a></li>{% endfor %}</ul>
+    {% endif %}
+
+    <div class="actions">
+      <a class="btn" href="{% url 'closet:item_edit' item.pk %}">Edit</a>
+      <a class="btn" href="{% url 'closet:outfit_create' %}?items={{ item.pk }}">Build an outfit around it</a>
+      <form method="post" action="{% url 'closet:item_delete' item.pk %}" onsubmit="return confirm('Remove {{ item.name|escapejs }} and its photo?')">{% csrf_token %}<button class="btn danger">Remove</button></form>
+    </div>
+  </div>
+</article>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}{{ trip.name }}{% endblock %}
+{% block content %}
+<h1>{{ trip.name }}</h1>
+<p class="sub">{% if trip.destination %}{{ trip.destination }}, {% endif %}{{ trip.start|date:'j M' }} &ndash; {{ trip.end|date:'j M Y' }}, {{ trip.nights }} night{{ trip.nights|pluralize }}. {{ packed }} of {{ total }} packed.</p>
+
+{% if forecast %}
+<h2>Forecast{% if trip.destination %} for {{ trip.destination }}{% endif %}</h2>
+<ul class="forecast">
+  {% for day, wx in forecast %}
+  <li><span>{{ day|date:'D j' }}</span><b aria-hidden="true">{{ wx.icon }}</b><strong>{{ wx.hi }}&deg;</strong><small>{{ wx.lo }}&deg;</small><em>{{ wx.label }}</em></li>
+  {% endfor %}
+</ul>
+<ul class="tips">{% for t in tips %}<li>{{ t }}</li>{% endfor %}</ul>
+{% elif trip.destination %}
+<p class="sub">No forecast yet. These dates are more than about two weeks away, or the destination wasn't found.</p>
+{% endif %}
+
+{% for group, rows in groups.items %}
+<h2>{{ group }}</h2>
+<ul class="packlist">
+  {% for r in rows %}
+  <li class="{% if r.packed %}done{% endif %}">
+    <form method="post" action="{% url 'closet:trip_toggle' trip.pk r.item.pk %}">{% csrf_token %}
+      <button aria-pressed="{{ r.packed|yesno:'true,false' }}">
+        <span class="box">{% if r.packed %}&#10003;{% endif %}</span>
+        <img src="{{ r.item.photo.url }}" alt="">
+        <span class="nm">{{ r.item.name }}</span>
+      </button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+{% empty %}
+<div class="empty"><p>Nothing on the list yet.</p><a class="btn primary" href="{% url 'closet:trip_edit' trip.pk %}">Choose pieces</a></div>
+{% endfor %}
+
+<div class="actions">
+  <a class="btn" href="{% url 'closet:trip_edit' trip.pk %}">Edit trip</a>
+  <form method="post" action="{% url 'closet:trip_delete' trip.pk %}" onsubmit="return confirm('Delete this trip? Your pieces stay in your wardrobe.')">{% csrf_token %}<button class="btn danger">Delete</button></form>
+</div>
+{% endblock %}

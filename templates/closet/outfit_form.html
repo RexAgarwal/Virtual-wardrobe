@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<form method="post" class="stack">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="field"><label for="{{ form.name.id_for_label }}">Name</label>{{ form.name }}{{ form.name.errors }}</div>
+  <div class="field"><label for="{{ form.occasion.id_for_label }}">Occasion</label>{{ form.occasion }}</div>
+
+  <fieldset class="field">
+    <legend>Pieces</legend>
+    {{ form.items.errors }}
+    <ul class="grid picker">
+      {% for item in pieces %}
+      <li class="tile">
+        <label>
+          <input type="checkbox" name="items" value="{{ item.pk }}" {% if item.pk in selected %}checked{% endif %}>
+          <img src="{{ item.photo.url }}" alt="" loading="lazy">
+          <span class="meta"><strong>{{ item.name }}</strong><span>{{ item.get_category_display }}</span></span>
+        </label>
+      </li>
+      {% endfor %}
+    </ul>
+  </fieldset>
+
+  <div class="field"><label for="{{ form.notes.id_for_label }}">Notes</label>{{ form.notes }}</div>
+  <div class="actions">
+    <button class="btn primary">Save outfit</button>
+    <a class="btn quiet" href="{% if outfit %}{{ outfit.get_absolute_url }}{% else %}{% url 'closet:outfit_list' %}{% endif %}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

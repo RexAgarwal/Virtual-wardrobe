@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Trips{% endblock %}
+{% block content %}
+<section class="toolbar">
+  <div><h1>Trips</h1><p class="sub">Packing lists built from your real wardrobe.</p></div>
+  <a class="btn primary" href="{% url 'closet:trip_create' %}">Plan a trip</a>
+</section>
+{% if trips %}
+<ul class="trips">
+  {% for t in trips %}
+  <li><a class="trip" href="{{ t.get_absolute_url }}">
+    <strong>{{ t.name }}</strong>
+    <span>{% if t.destination %}{{ t.destination }}, {% endif %}{{ t.start|date:'j M' }} &ndash; {{ t.end|date:'j M Y' }} ({{ t.nights }} night{{ t.nights|pluralize }})</span>
+    {% with total=t.packing.count packed=t.packed_count %}
+    <span>{{ packed }} of {{ total }} packed</span>
+    <div class="meter"><i style="width: {% if total %}{% widthratio packed total 100 %}{% else %}0{% endif %}%"></i></div>
+    {% endwith %}
+  </a></li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty"><p>No trips yet. Pick your dates and the pieces you want to bring.</p>
+<a class="btn primary" href="{% url 'closet:trip_create' %}">Plan a trip</a></div>
+{% endif %}
+{% endblock %}
