@@ -88,7 +88,7 @@ WSGI_APPLICATION = 'wardrobe.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': os.environ.get('WARDROBE_DB') or BASE_DIR / 'db.sqlite3',  # WARDROBE_DB: a scratch database for testing
     }
 }
 
@@ -167,6 +167,6 @@ SESSION_COOKIE_AGE = 60 * 60 * 24 * 90
 WARDROBE_BETA_USERS = ['Himanshu']
 WARDROBE_FEATURES = {
     'tryon': 'beta',
-    'perfumes': 'beta',
-    'watchlist': 'beta',
+    'perfumes': 'all',
+    'watchlist': 'all',
 }

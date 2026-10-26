@@ -1,10 +1,14 @@
 import random
+import re
 from datetime import date, timedelta
 
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
 from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.contrib.auth.decorators import login_not_required
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 import logging
@@ -17,10 +21,10 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from PIL import Image, UnidentifiedImageError
 
-from . import cutout, fitcheck, generator, linkpreview, tryon, weather
-from .features import feature_required
+from . import bookmarklet, cutout, fitcheck, generator, linkpreview, tryon, weather
+from .features import enabled, feature_required
 from .forms import ItemForm, OutfitForm, PerfumeForm, TripForm, WatchItemForm
-from .models import Item, Outfit, PackItem, Perfume, WatchItem, PlannedOutfit, Trip, TryOn, TryOnPhoto, WearLog
+from .models import ImportToken, Item, Outfit, PackItem, Perfume, WatchDraft, WatchItem, PlannedOutfit, Trip, TryOn, TryOnPhoto, WearLog
 
 
 def _offer_cutout(item):
@@ -693,6 +697,10 @@ def watch_add(request):
             except (linkpreview.LinkError, OSError):
                 messages.info(request, 'Saved without the shop picture. You can add your own.')
         item.save()
+        try:
+            WatchDraft.objects.filter(pk=request.POST.get('draft'), owner=request.user).delete()
+        except (ValueError, ValidationError):
+            pass
         messages.success(request, f'Added {item.name} to your watchlist.')
         return redirect(item)
     return render(request, 'closet/watch_start.html' if request.method == 'GET' else 'closet/watch_form.html', {
@@ -755,3 +763,63 @@ def watch_bought(request, pk):
         return redirect('closet:perfume_edit', pk=perfume.pk)
     messages.success(request, 'Marked as bought.')
     return redirect(watch)
+
+
+_SYMBOLS = {'\u20b9': 'INR', 'Rs': 'INR', 'INR': 'INR', '$': 'USD', '\u20ac': 'EUR', '\u00a3': 'GBP'}
+MAX_DRAFTS = 30
+
+
+@csrf_exempt
+@login_not_required
+@require_POST
+def watch_import(request):
+    """Receives what the browser button read off a shop page. Identified by the person's button token, not their
+    login (the post comes from another website, so their login cookie isn't sent). It only ever creates a draft."""
+    from django.http import HttpResponseForbidden
+    token = ImportToken.objects.select_related('owner').filter(token=request.POST.get('token', '')[:64]).first()
+    if not token or not enabled('watchlist', token.owner):
+        return HttpResponseForbidden('This save button is not valid. Make a new one from your Watchlist.')
+    user, post = token.owner, request.POST
+    raw_price = post.get('price', '')[:40]
+    currency = post.get('currency', '').strip().upper()[:3]
+    if not currency:
+        currency = next((code for sym, code in _SYMBOLS.items() if sym in raw_price), '')
+    image = post.get('image', '').strip()
+    url = post.get('url', '').strip()
+    clean = lambda u: u if u.lower().startswith(('http://', 'https://')) else ''
+    name = re.sub(r'\s*[:|]\s*Amazon\.[a-z.]+.*$', '', re.sub(r'\s+', ' ', post.get('name', '')).strip(), flags=re.I)
+    draft = WatchDraft.objects.create(
+        owner=user, url=clean(url)[:1000], name=name[:120], price=linkpreview._number(raw_price),
+        currency=currency, image_url=clean(image)[:1000])
+    old = user.watch_drafts.all()[MAX_DRAFTS:]  # keep the newest few; drafts are throw-away
+    WatchDraft.objects.filter(pk__in=[d.pk for d in old]).delete()
+    return redirect('closet:watch_draft', pk=draft.pk)
+
+
+@feature_required('watchlist')
+def watch_draft(request, pk):
+    draft = get_object_or_404(WatchDraft, pk=pk, owner=request.user)
+    initial = {'url': draft.url, 'name': draft.name, 'price': draft.price or None, 'currency': draft.currency,
+               'image_url': draft.image_url}
+    got = [x for x, ok in (('name', draft.name), ('price', draft.price), ('picture', draft.image_url)) if ok]
+    if got:
+        messages.success(request, 'Read from the shop page: ' + ', '.join(got) + '. Check it, then save.')
+    else:
+        messages.info(request, 'Nothing could be read from that page. Fill in the details below.')
+    return render(request, 'closet/watch_form.html', {
+        'form': WatchItemForm(initial=initial), 'title': 'Save to your watchlist', 'nav': 'watchlist',
+        'shown_image': draft.image_url, 'draft': draft})
+
+
+@feature_required('watchlist')
+def watch_button(request):
+    """Setup page for the browser button, with this person's own secret built in."""
+    if request.method == 'POST':
+        ImportToken.reset(request.user)
+        messages.success(request, 'Made a new button. The old one has stopped working, so replace it in your browser.')
+        return redirect('closet:watch_button')
+    token = getattr(request.user, 'import_token', None) or ImportToken.reset(request.user)
+    origin = f'{request.scheme}://{request.get_host()}'
+    return render(request, 'closet/watch_button.html', {
+        'nav': 'watchlist', 'origin': origin, 'link': bookmarklet.as_link(origin, token.token),
+        'raw': bookmarklet.code(origin, token.token), 'local': request.get_host().startswith(('127.', 'localhost'))})

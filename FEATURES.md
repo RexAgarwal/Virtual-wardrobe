@@ -47,6 +47,7 @@ Switched on only for admins and a few named users (see `WARDROBE_FEATURES` in se
 **Watchlist**
 - Things you want to buy later: name, price, picture, a link to the shop, kind (clothes, shoes, perfume, anything), priority and notes. Shows what everything you're watching adds up to, per currency.
 - Paste a shop link and it tries to read the name, price and picture from the page. This works for some shops only; big ones like Amazon, Myntra, H&M and Zara often block it, and then you fill in the details yourself.
+- A **browser save button** (a bookmark you add once) works on any shop, including ones that block link reading: tap it on a product page and your own browser sends the name, price and picture to a draft you review and save. Each person's button has its own secret and can be reset.
 - "I bought it" moves clothes into your wardrobe and perfume onto your shelf, keeping the picture and price.
 
 **Try on**

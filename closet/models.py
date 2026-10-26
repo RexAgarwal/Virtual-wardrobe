@@ -1,3 +1,4 @@
+import uuid
 from io import BytesIO
 
 from django.conf import settings
@@ -335,3 +336,31 @@ class WatchItem(models.Model):
             from urllib.parse import urlsplit
             self.site = (urlsplit(self.url).hostname or '').removeprefix('www.')[:80]
         super().save(*args, **kwargs)
+
+
+class ImportToken(models.Model):
+    """A secret that lets a person's "save to watchlist" browser button add drafts to their account (and nothing else)."""
+    owner = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='import_token')
+    token = models.CharField(max_length=64, unique=True)
+    created = models.DateTimeField(auto_now_add=True)
+
+    @classmethod
+    def reset(cls, user):
+        import secrets
+        obj, _ = cls.objects.update_or_create(owner=user, defaults={'token': secrets.token_urlsafe(32)})
+        return obj
+
+
+class WatchDraft(models.Model):
+    """What the browser button found on a shop page. Nothing is on the watchlist until its owner reviews and saves it."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='watch_drafts')
+    url = models.URLField(max_length=1000, blank=True)
+    name = models.CharField(max_length=120, blank=True)
+    price = models.CharField(max_length=40, blank=True)
+    currency = models.CharField(max_length=3, blank=True)
+    image_url = models.URLField(max_length=1000, blank=True)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created']

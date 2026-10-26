@@ -287,3 +287,10 @@ input[type=checkbox] { width: auto; accent-color: var(--royal); }
 .price { color: var(--royal-deep); font-weight: 500; }
 .price.big { font-family: var(--serif); font-size: 1.8rem; margin: 0 0 .4rem; }
 .ph-kind { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 1.2rem; }
+
+/* browser save button */
+.steps { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.steps section { background: var(--card); border: 1px solid rgba(176, 141, 76, .3); border-radius: var(--radius); padding: .4rem 1.3rem 1.2rem; box-shadow: var(--shadow); }
+.steps ol { padding-left: 1.2rem; display: grid; gap: .7rem; }
+.steps textarea { font-family: ui-monospace, Menlo, monospace; font-size: .72rem; }
+.bm { margin-top: .5rem; cursor: grab; }
