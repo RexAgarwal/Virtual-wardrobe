@@ -669,32 +669,60 @@ class BrowserSaveButton(TestCase):
         self.me = User.objects.create_user('himanshu', password='pw-him-12345')
         self.pal = User.objects.create_user('pal', password='pw-pal-12345')
         self.token = ImportToken.reset(self.me).token
+        patcher = mock.patch('closet.views.linkpreview.fetch_image', side_effect=lambda url: png().read())
+        self.fetch_image = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def post(self, client=None, **extra):
-        data = {'token': self.token, 'url': 'https://www.myntra.com/tshirts/x/1/buy', 'name': 'Striped Tee',
-                'price': '₹ 1,299.00', 'currency': '', 'image': 'https://assets.shop.example/t.jpg', **extra}
+        data = {'token': self.token, 'url': 'https://www.myntra.com/tshirts/x/1/buy', 'name': 'Striped Hoodie',
+                'price': '\u20b9 1,299.00', 'currency': '', 'image': 'https://assets.shop.example/t.jpg', **extra}
         return (client or Client()).post('/watchlist/import/', data)
 
-    def test_the_button_creates_a_draft_for_its_owner_without_being_logged_in(self):
-        from .models import WatchDraft
+    def test_the_button_saves_straight_to_the_watchlist_with_picture_and_price(self):
+        from .models import WatchItem
         r = self.post()  # a fresh, signed-out client, like a post arriving from another website
-        d = WatchDraft.objects.get()
-        self.assertRedirects(r, f'/watchlist/draft/{d.pk}/', fetch_redirect_response=False)
-        self.assertEqual((d.owner, d.name, d.price, d.currency, d.image_url), (self.me, 'Striped Tee', '1299.00', 'INR', 'https://assets.shop.example/t.jpg'))
+        w = WatchItem.objects.get()
+        self.assertRedirects(r, f'/watchlist/{w.pk}/', fetch_redirect_response=False)
+        self.assertEqual((w.owner, w.name, str(w.price), w.currency, w.kind, w.site, w.status),
+                         (self.me, 'Striped Hoodie', '1299.00', 'INR', 'top', 'myntra.com', 'watching'))
+        self.assertTrue(w.photo.name.endswith('.webp'))
+        self.client.force_login(self.me)
+        listing = self.client.get('/watchlist/')
+        self.assertEqual([i.name for i in listing.context['items']], ['Striped Hoodie'])
+        self.assertContains(listing, w.photo.url)
+        self.assertContains(listing, '\u20b91,299')
+
+    def test_only_one_picture_file_is_stored_not_a_raw_copy_too(self):
+        import os
+        from .models import WatchItem
+        self.post()
+        folder = os.path.dirname(WatchItem.objects.get().photo.path)
+        self.assertEqual([f for f in os.listdir(folder) if not f.endswith('.webp')], [])
+
+    def test_a_missing_or_unreadable_picture_still_saves_the_item(self):
+        from . import linkpreview
+        from .models import WatchItem
+        self.fetch_image.side_effect = linkpreview.LinkError('blocked')
+        self.post()
+        w = WatchItem.objects.get()
+        self.assertFalse(w.photo)
+        for junk in (b'<svg xmlns="http://www.w3.org/2000/svg"></svg>', b'<html>Access denied</html>', b''):
+            self.fetch_image.side_effect = lambda url, junk=junk: junk
+            self.post(url=f'https://shop.example/{len(junk)}')
+        self.assertEqual(WatchItem.objects.count(), 4)
+        self.assertFalse(any(i.photo for i in WatchItem.objects.all()))
 
     def test_it_works_without_a_csrf_token_but_only_with_a_valid_secret(self):
-        from .models import WatchDraft
-        strict = Client(enforce_csrf_checks=True)
-        self.assertEqual(self.post(client=strict).status_code, 302)
+        from .models import WatchItem
+        self.assertEqual(self.post(client=Client(enforce_csrf_checks=True)).status_code, 302)
         for bad in ('', 'nope', self.token[:-1], self.token + 'x'):
             self.assertEqual(self.post(token=bad).status_code, 403, bad)
-        self.assertEqual(WatchDraft.objects.count(), 1)
+        self.assertEqual(WatchItem.objects.count(), 1)
 
     def test_a_secret_for_someone_without_the_feature_is_refused(self):
-        from .models import ImportToken, WatchDraft
-        pal_token = ImportToken.reset(self.pal).token
-        self.assertEqual(self.post(token=pal_token).status_code, 403)
-        self.assertFalse(WatchDraft.objects.exists())
+        from .models import ImportToken, WatchItem
+        self.assertEqual(self.post(token=ImportToken.reset(self.pal).token).status_code, 403)
+        self.assertFalse(WatchItem.objects.exists())
 
     def test_a_new_button_stops_the_old_one(self):
         from .models import ImportToken
@@ -702,104 +730,99 @@ class BrowserSaveButton(TestCase):
         ImportToken.reset(self.me)
         self.assertEqual(self.post(token=old).status_code, 403)
 
-    def test_drafts_are_private_and_nothing_is_saved_until_review(self):
-        from .models import WatchDraft, WatchItem
+    def test_tapping_twice_does_not_make_two_entries(self):
+        from .models import WatchItem
         self.post()
-        d = WatchDraft.objects.get()
-        self.assertFalse(WatchItem.objects.exists())
-        self.client.force_login(self.pal)
-        self.assertEqual(self.client.get(f'/watchlist/draft/{d.pk}/').status_code, 404)
-        self.client.force_login(self.me)
-        page = self.client.get(f'/watchlist/draft/{d.pk}/')
-        self.assertContains(page, 'value="Striped Tee"')
-        self.assertContains(page, f'name="draft" value="{d.pk}"')
+        self.post()
+        self.assertEqual(WatchItem.objects.count(), 1)
+        self.post(url='https://www.myntra.com/another/page')
+        self.assertEqual(WatchItem.objects.count(), 2)
 
-    def test_saving_the_reviewed_draft_makes_the_item_and_removes_the_draft(self):
-        from .models import WatchDraft, WatchItem
+    def test_the_item_belongs_to_the_secrets_owner_and_stays_private(self):
+        from .models import WatchItem
         self.post()
-        d = WatchDraft.objects.get()
-        self.client.force_login(self.me)
-        with mock.patch('closet.views.linkpreview.fetch_image', return_value=png().read()):
-            self.client.post('/watchlist/new/', {'draft': str(d.pk), 'name': 'Striped Tee', 'url': d.url, 'kind': 'top',
-                                                 'price': '1299', 'currency': 'INR', 'priority': 2, 'status': 'watching',
-                                                 'image_url': d.image_url})
-        self.assertTrue(WatchItem.objects.get().photo)
-        self.assertFalse(WatchDraft.objects.exists())
+        w = WatchItem.objects.get()
+        self.client.force_login(self.pal)
+        self.assertEqual(self.client.get(f'/watchlist/{w.pk}/').status_code, 404)
 
     def test_odd_input_is_cleaned_not_trusted(self):
-        from .models import WatchDraft
+        from .models import WatchItem
         self.post(name='x' * 500, url='javascript:alert(1)', image='data:text/html,<script>', price='free', currency='toolong')
-        d = WatchDraft.objects.get()
-        self.assertEqual((len(d.name), d.url, d.image_url, d.price, d.currency), (120, '', '', '', 'TOO'))
+        w = WatchItem.objects.get()
+        self.assertEqual((len(w.name), w.url, bool(w.photo), w.price, w.currency), (120, '', False, None, 'TOO'))
+        self.fetch_image.assert_not_called()
 
-    def test_amazon_style_name_is_tidied(self):
-        from .models import WatchDraft
-        self.post(name='ADRO Premium Polo : Amazon.in: Clothing')
-        self.assertEqual(WatchDraft.objects.get().name, 'ADRO Premium Polo')
+    def test_names_are_tidied_and_kinds_guessed(self):
+        from .models import WatchItem
+        cases = {'ADRO Premium Polo : Amazon.in: Clothing': ('ADRO Premium Polo', 'top'),
+                 'Slim Fit Jeans for Men': ('Slim Fit Jeans for Men', 'bottom'),
+                 'Nike Air Max Sneakers': ('Nike Air Max Sneakers', 'shoes'),
+                 'Dior Sauvage Eau de Toilette 100ml': ('Dior Sauvage Eau de Toilette 100ml', 'perfume'),
+                 'Hooded Puffer Jacket': ('Hooded Puffer Jacket', 'outerwear'),
+                 'Mystery Thing': ('Mystery Thing', 'other')}
+        for i, (raw, (name, kind)) in enumerate(cases.items()):
+            self.post(name=raw, url=f'https://shop.example/{i}')
+            w = WatchItem.objects.get(url=f'https://shop.example/{i}')
+            self.assertEqual((w.name, w.kind), (name, kind), raw)
 
-    def test_old_drafts_are_pruned(self):
-        from .models import WatchDraft
-        for _ in range(35):
-            self.post()
-        self.assertEqual(WatchDraft.objects.count(), 30)
+    def test_a_page_with_nothing_readable_still_saves_something_to_fix(self):
+        from .models import WatchItem
+        self.post(name='', price='', image='')
+        w = WatchItem.objects.get()
+        self.assertEqual((w.name, w.price, bool(w.photo)), ('Untitled item', None, False))
 
     def test_setup_page_has_a_working_personal_button(self):
         self.client.force_login(self.me)
         page = self.client.get('/watchlist/button/')
         self.assertContains(page, 'javascript:')
         self.assertContains(page, self.token)
-        self.assertContains(page, 'testserver')  # the address the button posts back to
+        self.assertContains(page, 'testserver')
         self.client.force_login(self.pal)
         self.assertEqual(self.client.get('/watchlist/button/').status_code, 404)
 
     def test_resetting_makes_a_different_secret(self):
+        from .models import ImportToken
         self.client.force_login(self.me)
         self.client.post('/watchlist/button/')
-        from .models import ImportToken
         self.assertNotEqual(ImportToken.objects.get(owner=self.me).token, self.token)
 
+    # Older saves that were left waiting as drafts still show up and can be finished
+    def draft(self):
+        from .models import WatchDraft
+        return WatchDraft.objects.create(owner=self.me, name='Old Hoodie', price='999.00', currency='INR',
+                                         image_url='https://cdn.shop.example/h.jpg', url='https://shop.example/h')
 
-    def test_the_review_form_posts_to_the_page_that_saves_it(self):
+    def test_leftover_drafts_show_as_picture_cards_with_a_price(self):
+        d = self.draft()
+        self.client.force_login(self.me)
+        page = self.client.get('/watchlist/')
+        self.assertContains(page, 'Waiting for you to confirm')
+        self.assertContains(page, 'src="https://cdn.shop.example/h.jpg"')
+        self.assertContains(page, 'INR 999.00')
+        self.assertNotContains(page, 'Your watchlist is empty')
+        self.assertContains(page, f'/watchlist/draft/{d.pk}/')
+
+    def test_the_draft_review_form_posts_to_the_page_that_saves_it(self):
         import re
         from .models import WatchDraft, WatchItem
-        self.post()
-        d = WatchDraft.objects.get()
+        d = self.draft()
         self.client.force_login(self.me)
         html = self.client.get(f'/watchlist/draft/{d.pk}/').content.decode()
         form_tag = re.search(r'<form method="post" enctype="multipart/form-data"[^>]*>', html).group(0)
-        self.assertIn('action="/watchlist/new/"', form_tag)  # the bug: it posted back to the draft page and saved nothing
-        action = re.search(r'action="([^"]+)"', form_tag).group(1)
+        self.assertIn('action="/watchlist/new/"', form_tag)
         fields = {m.group(1): m.group(2) for m in re.finditer(r'<input type="hidden" name="(draft|image_url)"[^>]*value="([^"]*)"', html)}
-        with mock.patch('closet.views.linkpreview.fetch_image', side_effect=OSError('offline')):
-            r = self.client.post(action, {**fields, 'name': 'Hoodie', 'url': d.url, 'kind': 'top', 'price': '999', 'currency': 'INR',
-                                          'priority': 2, 'status': 'watching'})
+        r = self.client.post('/watchlist/new/', {**fields, 'name': 'Hoodie', 'url': d.url, 'kind': 'top', 'price': '999',
+                                                 'currency': 'INR', 'priority': 2, 'status': 'watching'})
         self.assertEqual(r.status_code, 302)
-        self.assertEqual(WatchItem.objects.get().name, 'Hoodie')
+        self.assertTrue(WatchItem.objects.get().photo)
         self.assertFalse(WatchDraft.objects.exists())
 
-    def test_unfinished_drafts_are_listed_and_can_be_discarded(self):
+    def test_drafts_are_private_and_can_be_discarded(self):
         from .models import WatchDraft
-        self.post()
-        d = WatchDraft.objects.get()
-        self.client.force_login(self.me)
-        page = self.client.get('/watchlist/')
-        self.assertContains(page, 'waiting for you')
-        self.assertContains(page, f'/watchlist/draft/{d.pk}/')
+        d = self.draft()
         self.client.force_login(self.pal)
-        self.assertEqual(self.client.post(f'/watchlist/draft/{d.pk}/discard/').status_code, 404)
+        for method, url in (('get', f'/watchlist/draft/{d.pk}/'), ('post', f'/watchlist/draft/{d.pk}/discard/')):
+            self.assertEqual(getattr(self.client, method)(url).status_code, 404)
         self.client.force_login(self.me)
         self.client.post(f'/watchlist/draft/{d.pk}/discard/')
         self.assertFalse(WatchDraft.objects.exists())
-
-    def test_a_picture_that_is_not_a_readable_image_saves_the_item_without_it(self):
-        from .models import WatchDraft, WatchItem
-        self.post()
-        d = WatchDraft.objects.get()
-        self.client.force_login(self.me)
-        for junk in (b'<svg xmlns="http://www.w3.org/2000/svg"></svg>', b'<html>Access denied</html>', b''):
-            with mock.patch('closet.views.linkpreview.fetch_image', return_value=junk):
-                r = self.client.post('/watchlist/new/', {'name': 'Hoodie', 'url': d.url, 'kind': 'top', 'priority': 2, 'status': 'watching',
-                                                         'image_url': 'https://cdn.shop.example/x.svg'})
-            self.assertEqual(r.status_code, 302, junk)
-        self.assertEqual(WatchItem.objects.count(), 3)
-        self.assertFalse(any(w.photo for w in WatchItem.objects.all()))

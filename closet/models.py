@@ -326,8 +326,10 @@ class WatchItem(models.Model):
     def price_label(self):
         if self.price is None:
             return ''
+        from decimal import Decimal
+        price = Decimal(str(self.price))  # may still be text right after being set from a form
         symbol = self.SYMBOLS.get(self.currency, f'{self.currency} ' if self.currency else '')
-        return f'{symbol}{self.price:,.0f}' if self.price == self.price.to_integral() else f'{symbol}{self.price:,.2f}'
+        return f'{symbol}{price:,.0f}' if price == price.to_integral() else f'{symbol}{price:,.2f}'
 
     def save(self, *args, **kwargs):
         if self.photo and not self.photo.name.endswith('.webp'):

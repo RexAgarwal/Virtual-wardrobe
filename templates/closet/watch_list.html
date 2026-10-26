@@ -7,17 +7,24 @@
 </section>
 
 {% if drafts %}
-<section class="drafts" aria-label="Saved from your browser">
-  <h2>Saved from your browser, waiting for you</h2>
-  <ul>
+<section aria-label="Older saves waiting for you">
+  <h2>Waiting for you to confirm</h2>
+  <ul class="grid watch">
     {% for d in drafts %}
-    <li>
-      <a href="{% url 'closet:watch_draft' d.pk %}"><strong>{{ d.name|default:'Untitled' }}</strong>{% if d.price %} <span>{{ d.currency }} {{ d.price }}</span>{% endif %}</a>
-      <form method="post" action="{% url 'closet:watch_draft_discard' d.pk %}">{% csrf_token %}<button class="btn quiet">Discard</button></form>
+    <li class="tile">
+      <a href="{% url 'closet:watch_draft' d.pk %}">
+        {% if d.image_url %}<img src="{{ d.image_url }}" alt="{{ d.name }}" loading="lazy" referrerpolicy="no-referrer">
+        {% else %}<div class="bottle" aria-hidden="true"><span class="ph-kind">No picture</span></div>{% endif %}
+        <div class="meta">
+          <strong>{{ d.name|default:'Untitled' }}</strong>
+          <span>{% if d.price %}<b class="price">{{ d.currency }} {{ d.price }}</b>{% endif %}</span>
+        </div>
+      </a>
+      <span class="badge">Tap to save</span>
+      <form method="post" action="{% url 'closet:watch_draft_discard' d.pk %}" class="discard">{% csrf_token %}<button class="btn quiet" aria-label="Discard {{ d.name }}">Discard</button></form>
     </li>
     {% endfor %}
   </ul>
-  <p class="sub">Open one to check it and tap Save.</p>
 </section>
 {% endif %}
 
@@ -52,7 +59,7 @@
   </li>
   {% endfor %}
 </ul>
-{% else %}
+{% elif not drafts %}
 <div class="empty">
   {% if total %}<p>Nothing here with those filters.</p>{% else %}
   <p>Your watchlist is empty. Add clothes, shoes or perfume you want, with a link, a price and a picture.</p>

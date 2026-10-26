@@ -2,7 +2,7 @@
 {% block title %}Save button{% endblock %}
 {% block content %}
 <h1>Save from any shop</h1>
-<p class="sub">A button for your browser. On a product page in Amazon, Myntra, H&amp;M, Zara or any shop, tap it and the name, price and picture land in your Watchlist for you to check and save.</p>
+<p class="sub">A button for your browser. On a product page in Amazon, Myntra, H&amp;M, Zara or any shop, tap it and the item lands in your Watchlist with its name, price and picture. You can edit it afterwards.</p>
 
 {% if local %}<p class="notice">You opened this page on this computer&rsquo;s own address (<code>{{ origin }}</code>), so the button would only work on this computer. To use it on your iPad or phone, open this page through your shared link and make the button there.</p>{% endif %}
 
@@ -29,7 +29,7 @@
 </div>
 
 <h2>What it sends</h2>
-<p>Only the page&rsquo;s address, and the product&rsquo;s name, price and picture link that your browser can see. Nothing is saved until you check and save the draft. The button has a secret in it that only lets it add drafts to your account. Don&rsquo;t share it.</p>
+<p>Only the page&rsquo;s address, and the product&rsquo;s name, price and picture link that your browser can see. The button has a secret in it that only lets it add items to your own watchlist. Don&rsquo;t share it. If it ever gets out, make a new button below.</p>
 <form method="post" class="actions">{% csrf_token %}
   <button class="btn quiet">Make a new button (stops the old one)</button>
   <a class="btn quiet" href="{% url 'closet:watch_list' %}">Back to watchlist</a>

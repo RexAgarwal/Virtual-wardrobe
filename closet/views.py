@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
 from django.urls import reverse
+from django.utils import timezone
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_not_required
 from django.views.decorators.csrf import csrf_exempt
@@ -464,9 +465,10 @@ def fitcheck_add(request):
         use_cut = cut.is_file() and request.POST.get(f'pick_{key}', 'cut') == 'cut'
         main, other = (cut, orig) if use_cut else (orig, cut if cut.is_file() else None)
         item = Item(owner=request.user, photo_is_cutout=use_cut, **fields)
-        item.photo.save(f'{token[:8]}-{key}{main.suffix}', ContentFile(main.read_bytes()))
+        item.photo = ContentFile(main.read_bytes(), name=f'{token[:8]}-{key}{main.suffix}')  # shrunk to WebP on save
         if other:
-            item.other_photo.save(f'{token[:8]}-{key}-alt{other.suffix}', ContentFile(other.read_bytes()))
+            item.other_photo = ContentFile(other.read_bytes(), name=f'{token[:8]}-{key}-alt{other.suffix}')
+        item.save()
         added.append(item)
     shutil.rmtree(folder, ignore_errors=True)
     request.session['fitcheck_tokens'] = [t for t in request.session.get('fitcheck_tokens', []) if t != token]
@@ -695,7 +697,7 @@ def watch_add(request):
             try:
                 data = linkpreview.fetch_image(wanted_image)
                 Image.open(BytesIO(data)).verify()  # a shop 'picture' can be an SVG or an error page; refuse those here
-                item.photo.save('link.img', ContentFile(data), save=False)
+                item.photo = ContentFile(data, name='link.img')
             except (linkpreview.LinkError, OSError, ValueError, SyntaxError):
                 messages.info(request, 'Saved without the shop picture. You can add your own.')
         item.save()
@@ -753,13 +755,14 @@ def watch_bought(request, pk):
     clothing = {c for c in Item.Category.values}
     if watch.kind in clothing and watch.photo:
         item = Item(owner=request.user, name=watch.name, category=watch.kind, price=watch.price, notes=watch.notes)
-        item.photo.save('watch.img', ContentFile(watch.photo.read()))
+        item.photo = ContentFile(watch.photo.read(), name='watch.img')
+        item.save()
         messages.success(request, 'Marked as bought and added to your wardrobe. Check the details.')
         return redirect('closet:item_edit', pk=item.pk)
     if watch.kind == 'perfume':
         perfume = Perfume(owner=request.user, name=watch.name, price=watch.price, comments=watch.notes)
         if watch.photo:
-            perfume.photo.save('watch.img', ContentFile(watch.photo.read()), save=False)
+            perfume.photo = ContentFile(watch.photo.read(), name='watch.img')
         perfume.save()
         messages.success(request, 'Marked as bought and added to your perfumes. Check the details.')
         return redirect('closet:perfume_edit', pk=perfume.pk)
@@ -771,12 +774,42 @@ _SYMBOLS = {'\u20b9': 'INR', 'Rs': 'INR', 'INR': 'INR', '$': 'USD', '\u20ac': 'E
 MAX_DRAFTS = 30
 
 
+KIND_WORDS = (  # first match wins, so "hooded jacket" is outerwear and "sneaker" is not a top
+    ('perfume', ('perfume', 'parfum', 'eau de', 'fragrance', 'cologne', 'deodorant', 'attar')),
+    ('shoes', ('shoe', 'sneaker', 'boot', 'sandal', 'loafer', 'heel', 'slipper', 'flip flop', 'trainer')),
+    ('bottom', ('jeans', 'trouser', 'pant', 'shorts', 'skirt', 'jogger', 'chino', 'legging', 'palazzo', 'cargo')),
+    ('dress', ('dress', 'gown', 'jumpsuit', 'saree', 'lehenga')),
+    ('outerwear', ('jacket', 'coat', 'blazer', 'cardigan', 'puffer', 'parka', 'windcheater')),
+    ('accessory', ('watch', 'sunglass', 'belt', 'wallet', 'bag', ' cap', 'hat', 'scarf', 'ring', 'necklace', 'bracelet', 'earring', 'tie')),
+    ('top', ('hoodie', 'sweatshirt', 't-shirt', 'tshirt', ' tee', 'shirt', 'polo', 'sweater', 'kurta', 'blouse', 'top', 'tank')),
+)
+
+
+def guess_kind(name):
+    text = f' {name.lower()} '
+    return next((kind for kind, words in KIND_WORDS if any(w in text for w in words)), 'other')
+
+
+def _pull_picture(item, image_url):
+    """Download the shop picture onto the item. Quietly skips anything that isn't a readable image."""
+    if not image_url:
+        return
+    try:
+        data = linkpreview.fetch_image(image_url)
+        Image.open(BytesIO(data)).verify()
+        item.photo = ContentFile(data, name='link.img')  # saved (shrunk to WebP) when the item is saved
+    except (linkpreview.LinkError, OSError, ValueError, SyntaxError):
+        pass
+
+
 @csrf_exempt
 @login_not_required
 @require_POST
 def watch_import(request):
-    """Receives what the browser button read off a shop page. Identified by the person's button token, not their
-    login (the post comes from another website, so their login cookie isn't sent). It only ever creates a draft."""
+    """Receives what the browser button read off a shop page and puts it on that person's watchlist.
+
+    The post comes from another website, so it is identified by the person's button token rather than their login
+    cookie. The token can only ever add a watchlist entry to its own account, which they can edit or remove."""
     from django.http import HttpResponseForbidden
     token = ImportToken.objects.select_related('owner').filter(token=request.POST.get('token', '')[:64]).first()
     if not token or not enabled('watchlist', token.owner):
@@ -786,16 +819,23 @@ def watch_import(request):
     currency = post.get('currency', '').strip().upper()[:3]
     if not currency:
         currency = next((code for sym, code in _SYMBOLS.items() if sym in raw_price), '')
-    image = post.get('image', '').strip()
-    url = post.get('url', '').strip()
-    clean = lambda u: u if u.lower().startswith(('http://', 'https://')) else ''
-    name = re.sub(r'\s*[:|]\s*Amazon\.[a-z.]+.*$', '', re.sub(r'\s+', ' ', post.get('name', '')).strip(), flags=re.I)
-    draft = WatchDraft.objects.create(
-        owner=user, url=clean(url)[:1000], name=name[:120], price=linkpreview._number(raw_price),
-        currency=currency, image_url=clean(image)[:1000])
-    old = user.watch_drafts.all()[MAX_DRAFTS:]  # keep the newest few; drafts are throw-away
-    WatchDraft.objects.filter(pk__in=[d.pk for d in old]).delete()
-    return redirect('closet:watch_draft', pk=draft.pk)
+    clean = lambda u: u if u.strip().lower().startswith(('http://', 'https://')) else ''
+    url = clean(post.get('url', '').strip())[:1000]
+    name = re.sub(r'\s*[:|]\s*Amazon\.[a-z.]+.*$', '', re.sub(r'\s+', ' ', post.get('name', '')).strip(), flags=re.I)[:120]
+    # a second tap on the same page (or a double click) shouldn't make a second entry
+    recent = timezone.now() - timedelta(hours=1)
+    again = url and user.watchlist.filter(url=url, status=WatchItem.Status.WATCHING, added__gte=recent).first()
+    if again:
+        messages.info(request, 'That one is already on your watchlist.')
+        return redirect(again)
+    price = linkpreview._number(raw_price)
+    item = WatchItem(owner=user, name=name or 'Untitled item', url=url, kind=guess_kind(name),
+                     price=price or None, currency=currency)
+    _pull_picture(item, clean(post.get('image', '').strip())[:1000])
+    item.save()
+    missing = [x for x, ok in (('price', price), ('picture', item.photo)) if not ok]
+    messages.success(request, f'Saved to your watchlist.' + (f' I could not read the {" or ".join(missing)}, so add it if you want.' if missing else ' Check the details below.'))
+    return redirect(item)
 
 
 @feature_required('watchlist')

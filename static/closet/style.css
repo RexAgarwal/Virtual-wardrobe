@@ -302,3 +302,6 @@ input[type=checkbox] { width: auto; accent-color: var(--royal); }
 .drafts li form { margin: 0; }
 .drafts a span { color: var(--muted); }
 .drafts p { margin: .4rem 0 0; }
+
+.watch .discard { position: absolute; right: .4rem; bottom: .4rem; margin: 0; }
+.watch .discard .btn { padding: .25rem .5rem; font-size: .65rem; background: rgba(251, 248, 241, .92); }
