@@ -427,3 +427,80 @@ class TryOnFlow(TestCase):
                 self.assertIn('not installed', str(e))
             else:
                 self.fail('should have raised')
+
+
+@override_settings(MEDIA_ROOT=MEDIA, WARDROBE_BETA_USERS=['Himanshu'], WARDROBE_FEATURES={'perfumes': 'beta'})
+class Perfumes(TestCase):
+    def setUp(self):
+        from .models import Perfume  # noqa: F401
+        self.me = User.objects.create_user('himanshu', password='pw-him-12345')
+        self.boss = User.objects.create_user('boss', password='pw-boss-12345', is_staff=True)
+        self.pal = User.objects.create_user('pal', password='pw-pal-12345')
+        self.client.force_login(self.me)
+
+    def add(self, **extra):
+        data = {'name': 'Sauvage', 'brand': 'Dior', 'concentration': 'edt', 'season': 'all', 'occasion': 'everyday',
+                'rating': 4, 'status': 'in_use', 'notes': 'bergamot, pepper, ambroxan', **extra}
+        return self.client.post('/perfumes/new/', data)
+
+    def test_only_beta_people_and_admins_see_it(self):
+        statuses = {}
+        for user in (self.me, self.boss, self.pal):
+            self.client.force_login(user)
+            statuses[user.username] = self.client.get('/perfumes/').status_code
+        self.assertEqual(statuses, {'himanshu': 200, 'boss': 200, 'pal': 404})
+        self.client.force_login(self.pal)
+        self.assertEqual(self.add().status_code, 404)
+        self.assertNotContains(self.client.get('/about/'), 'Perfumes <span')
+
+    def test_menu_link_shows_for_beta_people(self):
+        self.assertContains(self.client.get('/about/'), 'Perfumes <span class="beta">')
+
+    def test_add_view_edit_and_remove(self):
+        from .models import Perfume
+        r = self.add()
+        p = Perfume.objects.get()
+        self.assertRedirects(r, f'/perfumes/{p.pk}/', fetch_redirect_response=False)
+        page = self.client.get(f'/perfumes/{p.pk}/')
+        self.assertContains(page, 'Sauvage')
+        self.assertContains(page, 'ambroxan')
+        self.assertEqual(p.stars, '★★★★☆')
+        self.client.post(f'/perfumes/{p.pk}/edit/', {'name': 'Sauvage Elixir', 'brand': 'Dior', 'concentration': 'parfum',
+                                                    'season': 'winter', 'occasion': 'evening', 'rating': 5, 'status': 'in_use'})
+        p.refresh_from_db()
+        self.assertEqual((p.name, p.concentration), ('Sauvage Elixir', 'parfum'))
+        self.client.post(f'/perfumes/{p.pk}/delete/')
+        self.assertFalse(Perfume.objects.exists())
+
+    def test_one_persons_shelf_is_invisible_to_another(self):
+        from .models import Perfume
+        self.add()
+        p = Perfume.objects.get()
+        self.client.force_login(self.boss)
+        self.assertEqual(list(self.client.get('/perfumes/').context['perfumes']), [])
+        for method, url in (('get', f'/perfumes/{p.pk}/'), ('get', f'/perfumes/{p.pk}/edit/'), ('post', f'/perfumes/{p.pk}/delete/')):
+            self.assertEqual(getattr(self.client, method)(url).status_code, 404, url)
+        self.assertTrue(Perfume.objects.filter(pk=p.pk).exists())
+
+    def test_bottle_photos_are_optional_and_private(self):
+        from .models import Perfume
+        self.add(photo=png('bottle.png'))
+        p = Perfume.objects.get()
+        self.assertTrue(p.photo.name.endswith('.webp'))
+        self.assertEqual(self.client.get(p.photo.url).status_code, 200)
+        self.client.force_login(self.boss)
+        self.assertEqual(self.client.get(p.photo.url).status_code, 404)
+
+    def test_rating_is_clamped_and_filters_work(self):
+        from .models import Perfume
+        self.add(name='Citrus One', family='citrus', season='summer', notes='lemon')
+        self.add(name='Wood Two', family='woody', season='winter', notes='cedar', status='wishlist')
+        self.assertEqual(Perfume.objects.count(), 2)
+        names = lambda query: [p.name for p in self.client.get('/perfumes/' + query).context['perfumes']]
+        self.assertEqual(names('?family=citrus'), ['Citrus One'])
+        self.assertEqual(names('?q=cedar'), ['Wood Two'])
+        self.assertEqual(names('?status=in_use'), ['Citrus One'])
+        self.assertEqual(names('?season=summer'), ['Citrus One'])
+        self.add(name='Too High', rating=9)  # a rating above 5 is trimmed to 5, never stored as 9
+        self.assertEqual(Perfume.objects.get(name='Too High').rating, 5)
+        self.assertFalse(Perfume.objects.filter(rating__gt=5).exists())

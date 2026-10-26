@@ -167,4 +167,5 @@ SESSION_COOKIE_AGE = 60 * 60 * 24 * 90
 WARDROBE_BETA_USERS = ['Himanshu']
 WARDROBE_FEATURES = {
     'tryon': 'beta',
+    'perfumes': 'beta',
 }

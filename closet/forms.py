@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Item, Outfit, Trip
+from .models import Item, Outfit, Perfume, Trip
 
 
 class ItemForm(forms.ModelForm):
@@ -52,3 +52,19 @@ class TripForm(forms.ModelForm):
         if data.get('start') and data.get('end') and data['end'] < data['start']:
             self.add_error('end', 'Return date is before the departure date.')
         return data
+
+
+class PerfumeForm(forms.ModelForm):
+    class Meta:
+        model = Perfume
+        fields = ['name', 'brand', 'photo', 'concentration', 'family', 'notes', 'season', 'occasion',
+                  'size_ml', 'price', 'rating', 'status', 'comments']
+        widgets = {
+            'rating': forms.NumberInput(attrs={'type': 'range', 'min': 0, 'max': 5}),
+            'comments': forms.Textarea(attrs={'rows': 3}),
+            'photo': forms.ClearableFileInput(attrs={'accept': 'image/*', 'capture': 'environment'}),
+        }
+        labels = {'comments': 'Your thoughts'}
+
+    def clean_rating(self):
+        return min(max(self.cleaned_data['rating'] or 0, 0), 5)

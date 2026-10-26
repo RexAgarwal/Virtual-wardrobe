@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}{{ perfume }}{% endblock %}
+{% block content %}
+<article class="detail">
+  {% if perfume.photo %}<img src="{{ perfume.photo.url }}" alt="{{ perfume }}">
+  {% else %}<div class="bottle big" aria-hidden="true"><svg viewBox="0 0 48 64" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="19" y="4" width="10" height="8" rx="1.5"/><rect x="21" y="12" width="6" height="5"/><rect x="9" y="17" width="30" height="43" rx="6"/><path d="M16 38h16" stroke-width=".8"/></svg></div>{% endif %}
+  <div class="facts">
+    <h1>{{ perfume.name }}</h1>
+    {% if perfume.brand %}<p class="sub">{{ perfume.brand }}</p>{% endif %}
+    {% if perfume.stars %}<p class="stars" aria-label="{{ perfume.rating }} of 5">{{ perfume.stars }}</p>{% endif %}
+    <dl>
+      <dt>Type</dt><dd>{{ perfume.get_concentration_display }}{% if perfume.size_ml %}, {{ perfume.size_ml }} ml{% endif %}</dd>
+      {% if perfume.family %}<dt>Family</dt><dd>{{ perfume.get_family_display }}</dd>{% endif %}
+      <dt>Best in</dt><dd>{{ perfume.get_season_display }}</dd>
+      <dt>Best for</dt><dd>{{ perfume.get_occasion_display }}</dd>
+      {% if perfume.price %}<dt>Paid</dt><dd>{{ perfume.price }}</dd>{% endif %}
+      <dt>Status</dt><dd>{{ perfume.get_status_display }}</dd>
+    </dl>
+    {% if perfume.note_list %}<p class="tags">{% for n in perfume.note_list %}<span>{{ n }}</span>{% endfor %}</p>{% endif %}
+    {% if perfume.comments %}<p>{{ perfume.comments|linebreaksbr }}</p>{% endif %}
+    <div class="actions">
+      <a class="btn" href="{% url 'closet:perfume_edit' perfume.pk %}">Edit</a>
+      <form method="post" action="{% url 'closet:perfume_delete' perfume.pk %}" onsubmit="return confirm('Remove {{ perfume.name|escapejs }}?')">{% csrf_token %}<button class="btn danger">Remove</button></form>
+      <a class="btn quiet" href="{% url 'closet:perfume_list' %}">All perfumes</a>
+    </div>
+  </div>
+</article>
+{% endblock %}

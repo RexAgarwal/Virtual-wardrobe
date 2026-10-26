@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Perfumes{% endblock %}
+{% block content %}
+<section class="toolbar">
+  <div><h1>Perfumes <span class="beta">beta</span></h1><p class="sub">Your fragrance shelf, kept apart from your clothes.</p></div>
+  <a class="btn primary" href="{% url 'closet:perfume_create' %}">Add a perfume</a>
+</section>
+
+{% if total %}
+<section class="toolbar">
+  <form method="get" class="filters">
+    <input type="search" name="q" value="{{ filters.q }}" placeholder="Search name, brand or note" aria-label="Search">
+    <select name="family" aria-label="Scent family">
+      <option value="">Every family</option>
+      {% for v, label in families %}<option value="{{ v }}" {% if filters.family == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="season" aria-label="Season">
+      <option value="">Any season</option>
+      {% for v, label in seasons %}<option value="{{ v }}" {% if filters.season == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="status" aria-label="Status">
+      <option value="">Any status</option>
+      {% for v, label in statuses %}<option value="{{ v }}" {% if filters.status == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <button class="btn">Filter</button>
+    {% if filters.q or filters.family or filters.season or filters.status %}<a class="btn quiet" href="{% url 'closet:perfume_list' %}">Clear</a>{% endif %}
+  </form>
+  <p class="count">{{ perfumes.count }} of {{ total }}</p>
+</section>
+{% endif %}
+
+{% if perfumes %}
+<ul class="grid perfumes">
+  {% for p in perfumes %}
+  <li class="tile">
+    <a href="{{ p.get_absolute_url }}">
+      {% if p.photo %}<img src="{{ p.photo.url }}" alt="{{ p }}" loading="lazy">
+      {% else %}<div class="bottle" aria-hidden="true"><svg viewBox="0 0 48 64" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="19" y="4" width="10" height="8" rx="1.5"/><rect x="21" y="12" width="6" height="5"/><rect x="9" y="17" width="30" height="43" rx="6"/><path d="M16 38h16" stroke-width="1"/></svg></div>{% endif %}
+      <div class="meta">
+        <strong>{{ p.name }}</strong>
+        <span>{% if p.brand %}{{ p.brand }}, {% endif %}{{ p.get_concentration_display }}{% if p.size_ml %}, {{ p.size_ml }} ml{% endif %}</span>
+        {% if p.stars %}<span class="stars" aria-label="{{ p.rating }} of 5">{{ p.stars }}</span>{% endif %}
+      </div>
+    </a>
+    {% if p.status != 'in_use' %}<span class="badge">{{ p.get_status_display }}</span>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty">
+  {% if total %}<p>Nothing matches those filters.</p>{% else %}
+  <p>No perfumes yet. Add the fragrances you own, or ones you want, with their notes and when you like to wear them.</p>
+  <a class="btn primary" href="{% url 'closet:perfume_create' %}">Add your first perfume</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -274,3 +274,10 @@ input[type=checkbox] { width: auto; accent-color: var(--royal); }
 .tryons img, .tryons .ph { width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: var(--radius); background: var(--card); }
 .tryons .ph { display: grid; place-items: center; color: var(--muted); border: 1px dashed var(--line); font-family: var(--serif); font-style: italic; }
 @media (max-width: 700px) { .tryon-grid { grid-template-columns: 1fr; } }
+
+/* perfumes (beta) */
+.perfumes { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.bottle { aspect-ratio: 3/4; display: grid; place-items: center; color: var(--gold); background: radial-gradient(ellipse at 50% 35%, #fff, var(--paper)); }
+.bottle svg { width: 38%; height: auto; }
+.bottle.big { border-radius: var(--radius); border: 1px solid rgba(176, 141, 76, .3); box-shadow: var(--shadow); }
+.stars { color: var(--gold); letter-spacing: .12em; margin: 0; }

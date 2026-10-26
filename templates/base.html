@@ -18,6 +18,7 @@
     <a href="{% url 'closet:outfit_list' %}" {% if nav == 'outfits' %}aria-current="page"{% endif %}>Outfits</a>
     <a href="{% url 'closet:outfit_generate' %}" {% if nav == 'generate' %}aria-current="page"{% endif %}>Style me</a>
     <a href="{% url 'closet:fitcheck' %}" {% if nav == 'fitcheck' %}aria-current="page"{% endif %}>Fit check</a>
+    {% if features.perfumes %}<a href="{% url 'closet:perfume_list' %}" {% if nav == 'perfumes' %}aria-current="page"{% endif %}>Perfumes <span class="beta">beta</span></a>{% endif %}
     {% if features.tryon %}<a href="{% url 'closet:tryon' %}" {% if nav == 'tryon' %}aria-current="page"{% endif %}>Try on <span class="beta">beta</span></a>{% endif %}
     <a href="{% url 'closet:planner' %}" {% if nav == 'plan' %}aria-current="page"{% endif %}>Week</a>
     <a href="{% url 'closet:trip_list' %}" {% if nav == 'trips' %}aria-current="page"{% endif %}>Trips</a>

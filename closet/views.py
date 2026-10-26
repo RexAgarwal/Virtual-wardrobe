@@ -19,8 +19,8 @@ from PIL import Image, UnidentifiedImageError
 
 from . import cutout, fitcheck, generator, tryon, weather
 from .features import feature_required
-from .forms import ItemForm, OutfitForm, TripForm
-from .models import Item, Outfit, PackItem, PlannedOutfit, Trip, TryOn, TryOnPhoto, WearLog
+from .forms import ItemForm, OutfitForm, PerfumeForm, TripForm
+from .models import Item, Outfit, PackItem, Perfume, PlannedOutfit, Trip, TryOn, TryOnPhoto, WearLog
 
 
 def _offer_cutout(item):
@@ -490,7 +490,9 @@ def media(request, path):
     from django.http import Http404
     from django.views.static import serve
     parts = path.split('/')
-    if parts[0] == 'tryon':
+    if parts[0] == 'perfumes':
+        allowed = request.user.perfumes.filter(photo=path).exists()
+    elif parts[0] == 'tryon':
         allowed = (TryOnPhoto.objects.filter(owner=request.user, photo=path).exists()
                    or TryOn.objects.filter(owner=request.user, result=path).exists())
     elif parts[0] == 'fitcheck':
@@ -571,3 +573,64 @@ def tryon_delete(request, pk):
         job.result.delete(save=False)
     job.delete()
     return redirect('closet:tryon')
+
+
+# --- Perfumes (beta) -----------------------------------------------------------------------------------------
+
+@feature_required('perfumes')
+def perfume_list(request):
+    qs = request.user.perfumes.all()
+    f = {k: request.GET.get(k, '') for k in ('family', 'season', 'status', 'q')}
+    if f['family']:
+        qs = qs.filter(family=f['family'])
+    if f['season']:
+        qs = qs.filter(Q(season=f['season']) | Q(season=Item.Season.ALL))
+    if f['status']:
+        qs = qs.filter(status=f['status'])
+    if f['q']:
+        qs = qs.filter(Q(name__icontains=f['q']) | Q(brand__icontains=f['q']) | Q(notes__icontains=f['q']))
+    return render(request, 'closet/perfume_list.html', {
+        'perfumes': qs, 'filters': f, 'nav': 'perfumes', 'total': request.user.perfumes.count(),
+        'families': Perfume.Family.choices, 'seasons': Item.Season.choices, 'statuses': Perfume.Status.choices})
+
+
+@feature_required('perfumes')
+def perfume_detail(request, pk):
+    perfume = get_object_or_404(Perfume, pk=pk, owner=request.user)
+    return render(request, 'closet/perfume_detail.html', {'perfume': perfume, 'nav': 'perfumes'})
+
+
+@feature_required('perfumes')
+def perfume_create(request):
+    form = PerfumeForm(request.POST or None, request.FILES or None)
+    if form.is_valid():
+        perfume = form.save(commit=False)
+        perfume.owner = request.user
+        perfume.save()
+        messages.success(request, f'Added {perfume}.')
+        return redirect(perfume)
+    return render(request, 'closet/perfume_form.html', {'form': form, 'title': 'Add a perfume', 'nav': 'perfumes'})
+
+
+@feature_required('perfumes')
+def perfume_edit(request, pk):
+    perfume = get_object_or_404(Perfume, pk=pk, owner=request.user)
+    form = PerfumeForm(request.POST or None, request.FILES or None, instance=perfume)
+    if form.is_valid():
+        form.save()
+        messages.success(request, 'Saved.')
+        return redirect(perfume)
+    return render(request, 'closet/perfume_form.html', {
+        'form': form, 'perfume': perfume, 'title': perfume.name, 'nav': 'perfumes'})
+
+
+@feature_required('perfumes')
+@require_POST
+def perfume_delete(request, pk):
+    perfume = get_object_or_404(Perfume, pk=pk, owner=request.user)
+    if perfume.photo:
+        perfume.photo.delete(save=False)
+    name = str(perfume)
+    perfume.delete()
+    messages.success(request, f'Removed {name}.')
+    return redirect('closet:perfume_list')

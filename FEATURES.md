@@ -37,6 +37,16 @@ A personal digital closet. Photograph the clothes you own, build outfits from th
 - Runs on your own computer with a free open model. Photos are not uploaded anywhere, and only the cropped pieces are saved.
 - Known limits: crops are rectangles, it can't read brand names, and it sometimes names things wrongly or finds extras. You review everything before it's saved.
 
+## Beta features
+Switched on only for admins and a few named users (see `WARDROBE_FEATURES` in settings).
+
+**Perfumes**
+- A separate shelf for fragrances: name, brand, bottle photo, concentration, scent family, notes, best season and occasion, size, price, a 0-5 rating and a status (in use, wishlist, finished).
+- Search and filter by name, brand, note, family, season or status. Private to each account.
+
+**Try on**
+- Upload a full-body photo and see an outfit on you. Runs on your own computer with CatVTON and takes about 5 minutes per garment. Fine details can change.
+
 ## Accounts
 Sign up and sign in with a username and password. Each account has its own private wardrobe: pieces, outfits, plans, trips and photos are only visible to their owner. New wardrobes can start empty or with a few sample pieces.
 

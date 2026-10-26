@@ -208,3 +208,67 @@ class TryOn(models.Model):
 
     def get_absolute_url(self):
         return reverse('closet:tryon_job', args=[self.pk])
+
+
+class Perfume(models.Model):
+    class Concentration(models.TextChoices):
+        PARFUM = 'parfum', 'Parfum'
+        EDP = 'edp', 'Eau de parfum'
+        EDT = 'edt', 'Eau de toilette'
+        EDC = 'edc', 'Eau de cologne'
+        OTHER = 'other', 'Other'
+
+    class Family(models.TextChoices):
+        FRESH = 'fresh', 'Fresh'
+        CITRUS = 'citrus', 'Citrus'
+        FLORAL = 'floral', 'Floral'
+        WOODY = 'woody', 'Woody'
+        ORIENTAL = 'oriental', 'Oriental and amber'
+        GOURMAND = 'gourmand', 'Gourmand'
+        AROMATIC = 'aromatic', 'Aromatic'
+        SPICY = 'spicy', 'Spicy'
+        AQUATIC = 'aquatic', 'Aquatic'
+        LEATHER = 'leather', 'Leather and oud'
+
+    class Status(models.TextChoices):
+        IN_USE = 'in_use', 'In use'
+        WISHLIST = 'wishlist', 'Wishlist'
+        FINISHED = 'finished', 'Finished'
+
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='perfumes')
+    name = models.CharField(max_length=120)
+    brand = models.CharField(max_length=80, blank=True)
+    photo = models.ImageField(upload_to='perfumes/%Y/%m/', blank=True)
+    concentration = models.CharField(max_length=10, choices=Concentration.choices, default=Concentration.EDP)
+    family = models.CharField(max_length=10, choices=Family.choices, blank=True)
+    notes = models.CharField(max_length=200, blank=True, help_text='Scent notes, comma separated, e.g. bergamot, rose, vanilla')
+    season = models.CharField(max_length=10, choices=Item.Season.choices, default=Item.Season.ALL)
+    occasion = models.CharField(max_length=10, choices=Outfit.Occasion.choices, default=Outfit.Occasion.EVERYDAY)
+    size_ml = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name='Size (ml)')
+    price = models.DecimalField(max_digits=9, decimal_places=2, null=True, blank=True)
+    rating = models.PositiveSmallIntegerField(default=0, help_text='0 = not rated, 5 = favourite')
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.IN_USE)
+    comments = models.TextField(blank=True)
+    added = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['brand', 'name']
+
+    def __str__(self):
+        return f'{self.brand} {self.name}'.strip()
+
+    def get_absolute_url(self):
+        return reverse('closet:perfume_detail', args=[self.pk])
+
+    @property
+    def note_list(self):
+        return [n.strip() for n in self.notes.split(',') if n.strip()]
+
+    @property
+    def stars(self):
+        return '★' * self.rating + '☆' * (5 - self.rating) if self.rating else ''
+
+    def save(self, *args, **kwargs):
+        if self.photo and not self.photo.name.endswith('.webp'):
+            self.photo = Item._shrink(self.photo)
+        super().save(*args, **kwargs)
