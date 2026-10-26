@@ -44,6 +44,11 @@ Switched on only for admins and a few named users (see `WARDROBE_FEATURES` in se
 - A separate shelf for fragrances: name, brand, bottle photo, concentration, scent family, notes, best season and occasion, size, price, a 0-5 rating and a status (in use, wishlist, finished).
 - Search and filter by name, brand, note, family, season or status. Private to each account.
 
+**Watchlist**
+- Things you want to buy later: name, price, picture, a link to the shop, kind (clothes, shoes, perfume, anything), priority and notes. Shows what everything you're watching adds up to, per currency.
+- Paste a shop link and it tries to read the name, price and picture from the page. This works for some shops only; big ones like Amazon, Myntra, H&M and Zara often block it, and then you fill in the details yourself.
+- "I bought it" moves clothes into your wardrobe and perfume onto your shelf, keeping the picture and price.
+
 **Try on**
 - Upload a full-body photo and see an outfit on you. Runs on your own computer with CatVTON and takes about 5 minutes per garment. Fine details can change.
 

@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<form method="post" enctype="multipart/form-data" class="stack">
+  {% csrf_token %}
+  {% if shown_image %}<img class="preview" src="{{ shown_image }}" alt="From the shop" referrerpolicy="no-referrer"><small>Picture from the shop. It&rsquo;s saved with the item. Choose a file below to use your own instead.</small>
+  {% elif item.photo %}<img class="preview" src="{{ item.photo.url }}" alt="">{% endif %}
+  {{ form.non_field_errors }}
+  {% for field in form %}
+  {% if field.is_hidden %}{{ field }}{% else %}
+  <div class="field">
+    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+    {{ field }}
+    {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+    {{ field.errors }}
+  </div>
+  {% endif %}
+  {% endfor %}
+  <div class="actions">
+    <button class="btn primary">Save</button>
+    <a class="btn quiet" href="{% if item %}{{ item.get_absolute_url }}{% else %}{% url 'closet:watch_list' %}{% endif %}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

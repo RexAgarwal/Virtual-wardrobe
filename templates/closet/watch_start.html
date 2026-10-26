@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Add to your watchlist{% endblock %}
+{% block content %}
+<h1>Add to your watchlist</h1>
+<p class="sub">Something you want to buy later. Paste a link and I&rsquo;ll try to read the name, price and picture from the page.</p>
+
+<form method="post" class="stack">
+  {% csrf_token %}
+  <div class="field">
+    <label for="fetch_url">Shop link</label>
+    <input id="fetch_url" type="url" name="fetch_url" placeholder="https://..." autocomplete="off" required>
+    <small>Works for some shops. Many big ones (Amazon, Myntra, H&amp;M, Zara) block this, and then you fill in the details yourself.</small>
+  </div>
+  <div class="actions">
+    <button class="btn primary">Read the page</button>
+  </div>
+</form>
+
+<p class="sub" style="margin-top:1.5rem">No link? <a class="links" href="{% url 'closet:watch_manual' %}">Add it by hand</a>.</p>
+{% endblock %}

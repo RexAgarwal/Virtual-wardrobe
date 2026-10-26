@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Item, Outfit, Perfume, Trip
+from .models import Item, Outfit, Perfume, Trip, WatchItem
 
 
 class ItemForm(forms.ModelForm):
@@ -68,3 +68,19 @@ class PerfumeForm(forms.ModelForm):
 
     def clean_rating(self):
         return min(max(self.cleaned_data['rating'] or 0, 0), 5)
+
+
+class WatchItemForm(forms.ModelForm):
+    image_url = forms.CharField(required=False, widget=forms.HiddenInput)  # a picture found on the shop's page
+
+    class Meta:
+        model = WatchItem
+        fields = ['name', 'url', 'kind', 'price', 'currency', 'photo', 'priority', 'status', 'notes']
+        widgets = {
+            'notes': forms.Textarea(attrs={'rows': 3}),
+            'photo': forms.ClearableFileInput(attrs={'accept': 'image/*'}),
+            'currency': forms.TextInput(attrs={'maxlength': 3, 'placeholder': 'INR'}),
+        }
+
+    def clean_currency(self):
+        return self.cleaned_data['currency'].strip().upper()

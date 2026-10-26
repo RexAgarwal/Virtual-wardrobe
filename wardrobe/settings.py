@@ -168,4 +168,5 @@ WARDROBE_BETA_USERS = ['Himanshu']
 WARDROBE_FEATURES = {
     'tryon': 'beta',
     'perfumes': 'beta',
+    'watchlist': 'beta',
 }

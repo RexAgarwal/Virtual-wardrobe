@@ -272,3 +272,66 @@ class Perfume(models.Model):
         if self.photo and not self.photo.name.endswith('.webp'):
             self.photo = Item._shrink(self.photo)
         super().save(*args, **kwargs)
+
+
+class WatchItem(models.Model):
+    """Something the owner wants to buy later: clothes, shoes, a perfume, anything."""
+
+    class Kind(models.TextChoices):
+        TOP = 'top', 'Top'
+        BOTTOM = 'bottom', 'Bottom'
+        DRESS = 'dress', 'Dress'
+        OUTERWEAR = 'outerwear', 'Outerwear'
+        SHOES = 'shoes', 'Shoes'
+        ACCESSORY = 'accessory', 'Accessory'
+        PERFUME = 'perfume', 'Perfume'
+        OTHER = 'other', 'Something else'
+
+    class Priority(models.IntegerChoices):
+        MUST = 1, 'Must have'
+        WANT = 2, 'Want'
+        MAYBE = 3, 'Maybe'
+
+    class Status(models.TextChoices):
+        WATCHING = 'watching', 'Watching'
+        BOUGHT = 'bought', 'Bought'
+        DROPPED = 'dropped', 'Dropped'
+
+    SYMBOLS = {'INR': '\u20b9', 'USD': '$', 'EUR': '\u20ac', 'GBP': '\u00a3', 'AED': 'AED ', 'JPY': '\u00a5'}
+
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='watchlist')
+    name = models.CharField(max_length=120)
+    url = models.URLField(max_length=1000, blank=True, verbose_name='Link')
+    site = models.CharField(max_length=80, blank=True)
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.TOP)
+    price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    currency = models.CharField(max_length=3, blank=True, help_text='e.g. INR, USD')
+    photo = models.ImageField(upload_to='watchlist/%Y/%m/', blank=True)
+    priority = models.PositiveSmallIntegerField(choices=Priority.choices, default=Priority.WANT)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.WATCHING)
+    notes = models.TextField(blank=True)
+    added = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['priority', '-added']
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        return reverse('closet:watch_detail', args=[self.pk])
+
+    @property
+    def price_label(self):
+        if self.price is None:
+            return ''
+        symbol = self.SYMBOLS.get(self.currency, f'{self.currency} ' if self.currency else '')
+        return f'{symbol}{self.price:,.0f}' if self.price == self.price.to_integral() else f'{symbol}{self.price:,.2f}'
+
+    def save(self, *args, **kwargs):
+        if self.photo and not self.photo.name.endswith('.webp'):
+            self.photo = Item._shrink(self.photo)
+        if self.url and not self.site:
+            from urllib.parse import urlsplit
+            self.site = (urlsplit(self.url).hostname or '').removeprefix('www.')[:80]
+        super().save(*args, **kwargs)

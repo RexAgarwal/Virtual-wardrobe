@@ -281,3 +281,9 @@ input[type=checkbox] { width: auto; accent-color: var(--royal); }
 .bottle svg { width: 38%; height: auto; }
 .bottle.big { border-radius: var(--radius); border: 1px solid rgba(176, 141, 76, .3); box-shadow: var(--shadow); }
 .stars { color: var(--gold); letter-spacing: .12em; margin: 0; }
+
+/* watchlist (beta) */
+.watch { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.price { color: var(--royal-deep); font-weight: 500; }
+.price.big { font-family: var(--serif); font-size: 1.8rem; margin: 0 0 .4rem; }
+.ph-kind { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 1.2rem; }

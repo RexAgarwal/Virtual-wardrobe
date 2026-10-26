@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}Watchlist{% endblock %}
+{% block content %}
+<section class="toolbar">
+  <div><h1>Watchlist <span class="beta">beta</span></h1><p class="sub">Things you want to buy later.{% if totals %} Everything you&rsquo;re watching: <strong>{{ totals|join:' + ' }}</strong>.{% endif %}</p></div>
+  <a class="btn primary" href="{% url 'closet:watch_add' %}">Add to watchlist</a>
+</section>
+
+{% if total %}
+<nav class="chips" aria-label="Status">
+  {% for v, label in statuses %}<a href="?status={{ v }}{% if kind %}&kind={{ kind }}{% endif %}" {% if status == v %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+  <a href="?status=all{% if kind %}&kind={{ kind }}{% endif %}" {% if status == 'all' %}aria-current="page"{% endif %}>All</a>
+</nav>
+<form method="get" class="filters" style="margin:.8rem 0 1.2rem">
+  <input type="hidden" name="status" value="{{ status }}">
+  <select name="kind" aria-label="Kind" onchange="this.form.submit()">
+    <option value="">Everything</option>
+    {% for v, label in kinds %}<option value="{{ v }}" {% if kind == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  <noscript><button class="btn">Filter</button></noscript>
+</form>
+{% endif %}
+
+{% if items %}
+<ul class="grid watch">
+  {% for w in items %}
+  <li class="tile">
+    <a href="{{ w.get_absolute_url }}">
+      {% if w.photo %}<img src="{{ w.photo.url }}" alt="{{ w.name }}" loading="lazy">
+      {% else %}<div class="bottle" aria-hidden="true"><span class="ph-kind">{{ w.get_kind_display }}</span></div>{% endif %}
+      <div class="meta">
+        <strong>{{ w.name }}</strong>
+        <span>{% if w.price_label %}<b class="price">{{ w.price_label }}</b>{% endif %}{% if w.price_label and w.site %} &middot; {% endif %}{{ w.site }}</span>
+      </div>
+    </a>
+    <span class="badge">{% if w.status == 'watching' %}{{ w.get_priority_display }}{% else %}{{ w.get_status_display }}{% endif %}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty">
+  {% if total %}<p>Nothing here with those filters.</p>{% else %}
+  <p>Your watchlist is empty. Add clothes, shoes or perfume you want, with a link, a price and a picture.</p>
+  <a class="btn primary" href="{% url 'closet:watch_add' %}">Add your first one</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

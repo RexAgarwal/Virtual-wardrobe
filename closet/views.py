@@ -17,10 +17,10 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from PIL import Image, UnidentifiedImageError
 
-from . import cutout, fitcheck, generator, tryon, weather
+from . import cutout, fitcheck, generator, linkpreview, tryon, weather
 from .features import feature_required
-from .forms import ItemForm, OutfitForm, PerfumeForm, TripForm
-from .models import Item, Outfit, PackItem, Perfume, PlannedOutfit, Trip, TryOn, TryOnPhoto, WearLog
+from .forms import ItemForm, OutfitForm, PerfumeForm, TripForm, WatchItemForm
+from .models import Item, Outfit, PackItem, Perfume, WatchItem, PlannedOutfit, Trip, TryOn, TryOnPhoto, WearLog
 
 
 def _offer_cutout(item):
@@ -492,6 +492,8 @@ def media(request, path):
     parts = path.split('/')
     if parts[0] == 'perfumes':
         allowed = request.user.perfumes.filter(photo=path).exists()
+    elif parts[0] == 'watchlist':
+        allowed = request.user.watchlist.filter(photo=path).exists()
     elif parts[0] == 'tryon':
         allowed = (TryOnPhoto.objects.filter(owner=request.user, photo=path).exists()
                    or TryOn.objects.filter(owner=request.user, result=path).exists())
@@ -634,3 +636,122 @@ def perfume_delete(request, pk):
     perfume.delete()
     messages.success(request, f'Removed {name}.')
     return redirect('closet:perfume_list')
+
+
+# --- Watchlist (beta) ----------------------------------------------------------------------------------------
+
+@feature_required('watchlist')
+def watch_list(request):
+    status = request.GET.get('status', 'watching')
+    qs = request.user.watchlist.all()
+    if status in WatchItem.Status.values:
+        qs = qs.filter(status=status)
+    kind = request.GET.get('kind', '')
+    if kind:
+        qs = qs.filter(kind=kind)
+    totals = {}  # what it would cost to buy everything shown, per currency (mixing currencies would be wrong)
+    for w in qs:
+        if w.price is not None and w.status == WatchItem.Status.WATCHING:
+            totals[w.currency or '-'] = totals.get(w.currency or '-', 0) + w.price
+    symbol = WatchItem.SYMBOLS
+    totals = [f"{symbol.get(c, c + ' ' if c != '-' else '')}{t:,.0f}" for c, t in totals.items()]
+    return render(request, 'closet/watch_list.html', {
+        'items': qs, 'status': status, 'kind': kind, 'nav': 'watchlist', 'totals': totals,
+        'statuses': WatchItem.Status.choices, 'kinds': WatchItem.Kind.choices,
+        'total': request.user.watchlist.count()})
+
+
+@feature_required('watchlist')
+def watch_add(request):
+    """Step 1 is an optional link box that fills in what it can; step 2 is the form, always editable."""
+    initial, shown_image = {}, ''
+    if request.method == 'POST' and 'fetch_url' in request.POST:
+        url = request.POST['fetch_url'].strip()
+        initial = {'url': url}
+        try:
+            info = linkpreview.fetch(url)
+        except linkpreview.LinkError as e:
+            messages.info(request, f'{e} Fill in the details below instead; the link is kept.')
+        else:
+            initial.update(name=info['name'], price=info['price'] or None, currency=info['currency'],
+                           image_url=info['image_url'])
+            shown_image = info['image_url']
+            got = [x for x, ok in (('name', info['name']), ('price', info['price']), ('picture', info['image_url'])) if ok]
+            missing = [x for x in ('name', 'price', 'picture') if x not in got]
+            messages.success(request, 'Found: ' + ', '.join(got) + '.' + (f' Not found: {", ".join(missing)}. Add them below.' if missing else ''))
+        return render(request, 'closet/watch_form.html', {
+            'form': WatchItemForm(initial=initial), 'title': 'Add to your watchlist', 'nav': 'watchlist',
+            'shown_image': shown_image})
+    form = WatchItemForm(request.POST or None, request.FILES or None)
+    if request.method == 'POST' and form.is_valid():
+        item = form.save(commit=False)
+        item.owner = request.user
+        wanted_image = form.cleaned_data.get('image_url')
+        if wanted_image and not request.FILES.get('photo'):
+            try:
+                item.photo.save('link.img', ContentFile(linkpreview.fetch_image(wanted_image)), save=False)
+            except (linkpreview.LinkError, OSError):
+                messages.info(request, 'Saved without the shop picture. You can add your own.')
+        item.save()
+        messages.success(request, f'Added {item.name} to your watchlist.')
+        return redirect(item)
+    return render(request, 'closet/watch_start.html' if request.method == 'GET' else 'closet/watch_form.html', {
+        'form': form, 'title': 'Add to your watchlist', 'nav': 'watchlist'})
+
+
+@feature_required('watchlist')
+def watch_manual(request):
+    return render(request, 'closet/watch_form.html', {
+        'form': WatchItemForm(), 'title': 'Add to your watchlist', 'nav': 'watchlist'})
+
+
+@feature_required('watchlist')
+def watch_detail(request, pk):
+    item = get_object_or_404(WatchItem, pk=pk, owner=request.user)
+    return render(request, 'closet/watch_detail.html', {'item': item, 'nav': 'watchlist'})
+
+
+@feature_required('watchlist')
+def watch_edit(request, pk):
+    item = get_object_or_404(WatchItem, pk=pk, owner=request.user)
+    form = WatchItemForm(request.POST or None, request.FILES or None, instance=item)
+    if form.is_valid():
+        form.save()
+        messages.success(request, 'Saved.')
+        return redirect(item)
+    return render(request, 'closet/watch_form.html', {'form': form, 'item': item, 'title': item.name, 'nav': 'watchlist'})
+
+
+@feature_required('watchlist')
+@require_POST
+def watch_delete(request, pk):
+    item = get_object_or_404(WatchItem, pk=pk, owner=request.user)
+    if item.photo:
+        item.photo.delete(save=False)
+    item.delete()
+    messages.success(request, f'Removed {item.name}.')
+    return redirect('closet:watch_list')
+
+
+@feature_required('watchlist')
+@require_POST
+def watch_bought(request, pk):
+    """Mark it bought and, for clothes and perfume, start the real entry so the photo and price carry over."""
+    watch = get_object_or_404(WatchItem, pk=pk, owner=request.user)
+    watch.status = WatchItem.Status.BOUGHT
+    watch.save(update_fields=['status'])
+    clothing = {c for c in Item.Category.values}
+    if watch.kind in clothing and watch.photo:
+        item = Item(owner=request.user, name=watch.name, category=watch.kind, price=watch.price, notes=watch.notes)
+        item.photo.save('watch.img', ContentFile(watch.photo.read()))
+        messages.success(request, 'Marked as bought and added to your wardrobe. Check the details.')
+        return redirect('closet:item_edit', pk=item.pk)
+    if watch.kind == 'perfume':
+        perfume = Perfume(owner=request.user, name=watch.name, price=watch.price, comments=watch.notes)
+        if watch.photo:
+            perfume.photo.save('watch.img', ContentFile(watch.photo.read()), save=False)
+        perfume.save()
+        messages.success(request, 'Marked as bought and added to your perfumes. Check the details.')
+        return redirect('closet:perfume_edit', pk=perfume.pk)
+    messages.success(request, 'Marked as bought.')
+    return redirect(watch)

@@ -504,3 +504,159 @@ class Perfumes(TestCase):
         self.add(name='Too High', rating=9)  # a rating above 5 is trimmed to 5, never stored as 9
         self.assertEqual(Perfume.objects.get(name='Too High').rating, 5)
         self.assertFalse(Perfume.objects.filter(rating__gt=5).exists())
+
+
+class LinkPreview(TestCase):
+    def test_reads_schema_org_product_data(self):
+        from . import linkpreview as lp
+        html = '''<html><head><title>Shop</title><script type="application/ld+json">
+        {"@context":"https://schema.org","@graph":[{"@type":"WebSite"},{"@type":"Product","name":"Linen Shirt",
+         "image":["/img/a.jpg","/img/b.jpg"],"offers":[{"@type":"Offer","price":"1,299.00","priceCurrency":"inr"}]}]}
+        </script></head></html>'''
+        info = lp.parse(html, 'https://www.shop.example/p/1')
+        self.assertEqual((info['name'], info['price'], info['currency'], info['image_url'], info['site']),
+                         ('Linen Shirt', '1299.00', 'INR', 'https://www.shop.example/img/a.jpg', 'www.shop.example'))
+
+    def test_falls_back_to_open_graph_tags(self):
+        from . import linkpreview as lp
+        html = '''<head><meta property="og:title" content="Black   Jeans"><meta property="og:image" content="https://cdn.example/j.jpg">
+        <meta property="product:price:amount" content="49,90"><meta property="product:price:currency" content="eur"></head>'''
+        info = lp.parse(html, 'https://x.example/')
+        self.assertEqual((info['name'], info['price'], info['currency']), ('Black Jeans', '49.90', 'EUR'))
+
+    def test_price_formats(self):
+        from .linkpreview import _number
+        cases = {'1,299.00': '1299.00', '₹ 1299': '1299.00', '1.299,50': '1299.50', '49,90': '49.90', '2,499': '2499.00',
+                 1299: '1299.00', None: '', 'free': ''}
+        for raw, want in cases.items():
+            self.assertEqual(_number(raw), want, raw)
+
+    def test_amazon_style_titles_are_trimmed(self):
+        from . import linkpreview as lp
+        info = lp.parse('<title>ADRO Cotton Polo for Men : Amazon.in: Fashion</title>', 'https://www.amazon.in/dp/X')
+        self.assertEqual(info['name'], 'ADRO Cotton Polo for Men')
+
+    def test_private_and_odd_addresses_are_refused(self):
+        from . import linkpreview as lp
+        for url in ('http://127.0.0.1/', 'http://localhost:8000/', 'http://10.0.0.5/', 'http://192.168.1.1/x',
+                    'http://169.254.169.254/latest/meta-data/', 'http://[::1]/', 'file:///etc/passwd', 'ftp://93.184.216.34/',
+                    'javascript:alert(1)', 'not a url', ''):
+            with self.assertRaises(lp.LinkError, msg=url):
+                lp.check_url(url)
+        self.assertEqual(lp.check_url('https://93.184.216.34/page').hostname, '93.184.216.34')
+
+    def test_a_redirect_into_the_private_network_is_refused(self):
+        import urllib.error
+        from email.message import Message
+        from . import linkpreview as lp
+        headers = Message()
+        headers['Location'] = 'http://192.168.0.10/admin'
+
+        def fake_open(self, request, timeout=None):
+            raise urllib.error.HTTPError(request.full_url, 302, 'Found', headers, None)
+
+        with mock.patch('urllib.request.OpenerDirector.open', fake_open):
+            with self.assertRaises(lp.LinkError):
+                lp.fetch('https://93.184.216.34/start')
+
+
+@override_settings(MEDIA_ROOT=MEDIA, WARDROBE_BETA_USERS=['Himanshu'], WARDROBE_FEATURES={'watchlist': 'beta'})
+class Watchlist(TestCase):
+    def setUp(self):
+        self.me = User.objects.create_user('himanshu', password='pw-him-12345')
+        self.boss = User.objects.create_user('boss', password='pw-boss-12345', is_staff=True)
+        self.pal = User.objects.create_user('pal', password='pw-pal-12345')
+        self.client.force_login(self.me)
+
+    def save(self, **extra):
+        data = {'name': 'Linen Shirt', 'url': 'https://www.shop.example/p/1', 'kind': 'top', 'price': '1299',
+                'currency': 'inr', 'priority': 2, 'status': 'watching', **extra}
+        return self.client.post('/watchlist/new/', data)
+
+    def test_only_beta_people_and_admins(self):
+        codes = {}
+        for user in (self.me, self.boss, self.pal):
+            self.client.force_login(user)
+            codes[user.username] = self.client.get('/watchlist/').status_code
+        self.assertEqual(codes, {'himanshu': 200, 'boss': 200, 'pal': 404})
+        self.client.force_login(self.pal)
+        self.assertEqual(self.client.post('/watchlist/new/', {'fetch_url': 'https://x.example'}).status_code, 404)
+
+    def test_add_by_hand_with_a_price_and_site_from_the_link(self):
+        from .models import WatchItem
+        self.save()
+        w = WatchItem.objects.get()
+        self.assertEqual((w.site, w.currency, w.price_label), ('shop.example', 'INR', '₹1,299'))
+
+    def test_link_autofill_fills_the_form_and_the_picture_is_saved_on_submit(self):
+        from . import linkpreview
+        from .models import WatchItem
+        info = {'name': 'Linen Shirt', 'price': '1299.00', 'currency': 'INR', 'image_url': 'https://cdn.shop.example/a.jpg', 'site': 's'}
+        with mock.patch('closet.views.linkpreview.fetch', return_value=info):
+            page = self.client.post('/watchlist/new/', {'fetch_url': 'https://www.shop.example/p/1'})
+        self.assertContains(page, 'value="Linen Shirt"')
+        self.assertContains(page, 'value="https://cdn.shop.example/a.jpg"')
+        with mock.patch('closet.views.linkpreview.fetch_image', return_value=png().read()):
+            self.save(image_url='https://cdn.shop.example/a.jpg')
+        w = WatchItem.objects.get()
+        self.assertTrue(w.photo.name.endswith('.webp'))
+
+    def test_a_blocked_shop_falls_back_to_typing_it_in_and_keeps_the_link(self):
+        from . import linkpreview
+        with mock.patch('closet.views.linkpreview.fetch', side_effect=linkpreview.LinkError('That shop did not let me read the page.')):
+            page = self.client.post('/watchlist/new/', {'fetch_url': 'https://www.myntra.example/p'})
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, 'value="https://www.myntra.example/p"')
+        self.assertContains(page, 'did not let me read the page')
+
+    def test_a_bad_picture_link_does_not_stop_the_item_being_saved(self):
+        from . import linkpreview
+        from .models import WatchItem
+        with mock.patch('closet.views.linkpreview.fetch_image', side_effect=linkpreview.LinkError('no')):
+            self.save(image_url='http://127.0.0.1/secret.png')
+        self.assertFalse(WatchItem.objects.get().photo)
+
+    def test_it_is_private_including_the_picture(self):
+        from .models import WatchItem
+        self.save(photo=png('shirt.png'))
+        w = WatchItem.objects.get()
+        self.assertEqual(self.client.get(w.photo.url).status_code, 200)
+        self.client.force_login(self.boss)
+        self.assertEqual(list(self.client.get('/watchlist/?status=all').context['items']), [])
+        for method, url in (('get', f'/watchlist/{w.pk}/'), ('get', f'/watchlist/{w.pk}/edit/'),
+                            ('post', f'/watchlist/{w.pk}/delete/'), ('post', f'/watchlist/{w.pk}/bought/'), ('get', w.photo.url)):
+            self.assertEqual(getattr(self.client, method)(url).status_code, 404, url)
+        self.assertTrue(WatchItem.objects.filter(pk=w.pk).exists())
+
+    def test_totals_are_kept_per_currency(self):
+        self.save(name='A', price='1000', currency='INR')
+        self.save(name='B', price='500', currency='inr')
+        self.save(name='C', price='40', currency='usd')
+        self.save(name='D', price='999', currency='INR', status='bought')  # not counted: already bought
+        totals = self.client.get('/watchlist/').context['totals']
+        self.assertEqual(sorted(totals), ['$40', '₹1,500'])
+
+    def test_bought_clothes_move_into_the_wardrobe_with_picture_and_price(self):
+        from .models import WatchItem
+        self.save(photo=png('shirt.png'))
+        w = WatchItem.objects.get()
+        r = self.client.post(f'/watchlist/{w.pk}/bought/')
+        item = Item.objects.get(owner=self.me)
+        self.assertRedirects(r, f'/items/{item.pk}/edit/', fetch_redirect_response=False)
+        self.assertEqual((item.name, item.category, str(item.price)), ('Linen Shirt', 'top', '1299.00'))
+        self.assertTrue(item.photo)
+        w.refresh_from_db()
+        self.assertEqual(w.status, 'bought')
+
+    def test_bought_perfume_goes_to_the_perfume_shelf_and_other_things_just_get_marked(self):
+        from .models import Perfume, WatchItem
+        with override_settings(WARDROBE_FEATURES={'watchlist': 'beta', 'perfumes': 'beta'}):
+            self.save(name='Sauvage', kind='perfume', photo=png('p.png'))
+            self.client.post(f'/watchlist/{WatchItem.objects.get(name="Sauvage").pk}/bought/')
+            self.assertEqual(Perfume.objects.get(owner=self.me).name, 'Sauvage')
+        self.save(name='Gift card', kind='other')
+        gift = WatchItem.objects.get(name='Gift card')
+        self.client.post(f'/watchlist/{gift.pk}/bought/')
+        gift.refresh_from_db()
+        self.assertEqual(gift.status, 'bought')
+        self.assertEqual(Item.objects.filter(owner=self.me).count(), 0)
