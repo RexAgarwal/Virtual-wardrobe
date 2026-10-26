@@ -2,7 +2,7 @@
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
 <h1>{{ title }}</h1>
-<form method="post" enctype="multipart/form-data" class="stack">
+<form method="post" enctype="multipart/form-data" class="stack"{% if draft %} action="{% url 'closet:watch_add' %}"{% endif %}>
   {% csrf_token %}
   {% if shown_image %}<img class="preview" src="{{ shown_image }}" alt="From the shop" referrerpolicy="no-referrer"><small>Picture from the shop. It&rsquo;s saved with the item. Choose a file below to use your own instead.</small>
   {% elif item.photo %}<img class="preview" src="{{ item.photo.url }}" alt="">{% endif %}

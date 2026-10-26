@@ -37,6 +37,7 @@ urlpatterns = [
     path('watchlist/import/', views.watch_import, name='watch_import'),
     path('watchlist/button/', views.watch_button, name='watch_button'),
     path('watchlist/draft/<uuid:pk>/', views.watch_draft, name='watch_draft'),
+    path('watchlist/draft/<uuid:pk>/discard/', views.watch_draft_discard, name='watch_draft_discard'),
     path('watchlist/manual/', views.watch_manual, name='watch_manual'),
     path('watchlist/<int:pk>/', views.watch_detail, name='watch_detail'),
     path('watchlist/<int:pk>/edit/', views.watch_edit, name='watch_edit'),

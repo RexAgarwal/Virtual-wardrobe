@@ -757,3 +757,49 @@ class BrowserSaveButton(TestCase):
         self.client.post('/watchlist/button/')
         from .models import ImportToken
         self.assertNotEqual(ImportToken.objects.get(owner=self.me).token, self.token)
+
+
+    def test_the_review_form_posts_to_the_page_that_saves_it(self):
+        import re
+        from .models import WatchDraft, WatchItem
+        self.post()
+        d = WatchDraft.objects.get()
+        self.client.force_login(self.me)
+        html = self.client.get(f'/watchlist/draft/{d.pk}/').content.decode()
+        form_tag = re.search(r'<form method="post" enctype="multipart/form-data"[^>]*>', html).group(0)
+        self.assertIn('action="/watchlist/new/"', form_tag)  # the bug: it posted back to the draft page and saved nothing
+        action = re.search(r'action="([^"]+)"', form_tag).group(1)
+        fields = {m.group(1): m.group(2) for m in re.finditer(r'<input type="hidden" name="(draft|image_url)"[^>]*value="([^"]*)"', html)}
+        with mock.patch('closet.views.linkpreview.fetch_image', side_effect=OSError('offline')):
+            r = self.client.post(action, {**fields, 'name': 'Hoodie', 'url': d.url, 'kind': 'top', 'price': '999', 'currency': 'INR',
+                                          'priority': 2, 'status': 'watching'})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(WatchItem.objects.get().name, 'Hoodie')
+        self.assertFalse(WatchDraft.objects.exists())
+
+    def test_unfinished_drafts_are_listed_and_can_be_discarded(self):
+        from .models import WatchDraft
+        self.post()
+        d = WatchDraft.objects.get()
+        self.client.force_login(self.me)
+        page = self.client.get('/watchlist/')
+        self.assertContains(page, 'waiting for you')
+        self.assertContains(page, f'/watchlist/draft/{d.pk}/')
+        self.client.force_login(self.pal)
+        self.assertEqual(self.client.post(f'/watchlist/draft/{d.pk}/discard/').status_code, 404)
+        self.client.force_login(self.me)
+        self.client.post(f'/watchlist/draft/{d.pk}/discard/')
+        self.assertFalse(WatchDraft.objects.exists())
+
+    def test_a_picture_that_is_not_a_readable_image_saves_the_item_without_it(self):
+        from .models import WatchDraft, WatchItem
+        self.post()
+        d = WatchDraft.objects.get()
+        self.client.force_login(self.me)
+        for junk in (b'<svg xmlns="http://www.w3.org/2000/svg"></svg>', b'<html>Access denied</html>', b''):
+            with mock.patch('closet.views.linkpreview.fetch_image', return_value=junk):
+                r = self.client.post('/watchlist/new/', {'name': 'Hoodie', 'url': d.url, 'kind': 'top', 'priority': 2, 'status': 'watching',
+                                                         'image_url': 'https://cdn.shop.example/x.svg'})
+            self.assertEqual(r.status_code, 302, junk)
+        self.assertEqual(WatchItem.objects.count(), 3)
+        self.assertFalse(any(w.photo for w in WatchItem.objects.all()))

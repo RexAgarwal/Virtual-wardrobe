@@ -294,3 +294,11 @@ input[type=checkbox] { width: auto; accent-color: var(--royal); }
 .steps ol { padding-left: 1.2rem; display: grid; gap: .7rem; }
 .steps textarea { font-family: ui-monospace, Menlo, monospace; font-size: .72rem; }
 .bm { margin-top: .5rem; cursor: grab; }
+
+.drafts { background: var(--card); border: 1px solid var(--gold); border-radius: var(--radius); padding: .2rem 1.2rem 1rem; margin-bottom: 1.5rem; }
+.drafts h2 { font-size: 1.2rem; }
+.drafts ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+.drafts li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.drafts li form { margin: 0; }
+.drafts a span { color: var(--muted); }
+.drafts p { margin: .4rem 0 0; }

@@ -662,7 +662,7 @@ def watch_list(request):
     return render(request, 'closet/watch_list.html', {
         'items': qs, 'status': status, 'kind': kind, 'nav': 'watchlist', 'totals': totals,
         'statuses': WatchItem.Status.choices, 'kinds': WatchItem.Kind.choices,
-        'total': request.user.watchlist.count()})
+        'total': request.user.watchlist.count(), 'drafts': request.user.watch_drafts.all()})
 
 
 @feature_required('watchlist')
@@ -693,8 +693,10 @@ def watch_add(request):
         wanted_image = form.cleaned_data.get('image_url')
         if wanted_image and not request.FILES.get('photo'):
             try:
-                item.photo.save('link.img', ContentFile(linkpreview.fetch_image(wanted_image)), save=False)
-            except (linkpreview.LinkError, OSError):
+                data = linkpreview.fetch_image(wanted_image)
+                Image.open(BytesIO(data)).verify()  # a shop 'picture' can be an SVG or an error page; refuse those here
+                item.photo.save('link.img', ContentFile(data), save=False)
+            except (linkpreview.LinkError, OSError, ValueError, SyntaxError):
                 messages.info(request, 'Saved without the shop picture. You can add your own.')
         item.save()
         try:
@@ -794,6 +796,13 @@ def watch_import(request):
     old = user.watch_drafts.all()[MAX_DRAFTS:]  # keep the newest few; drafts are throw-away
     WatchDraft.objects.filter(pk__in=[d.pk for d in old]).delete()
     return redirect('closet:watch_draft', pk=draft.pk)
+
+
+@feature_required('watchlist')
+@require_POST
+def watch_draft_discard(request, pk):
+    get_object_or_404(WatchDraft, pk=pk, owner=request.user).delete()
+    return redirect('closet:watch_list')
 
 
 @feature_required('watchlist')

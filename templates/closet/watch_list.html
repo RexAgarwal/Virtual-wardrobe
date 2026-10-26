@@ -6,6 +6,21 @@
   <div class="actions" style="margin:0"><a class="btn quiet" href="{% url 'closet:watch_button' %}">Browser save button</a><a class="btn primary" href="{% url 'closet:watch_add' %}">Add to watchlist</a></div>
 </section>
 
+{% if drafts %}
+<section class="drafts" aria-label="Saved from your browser">
+  <h2>Saved from your browser, waiting for you</h2>
+  <ul>
+    {% for d in drafts %}
+    <li>
+      <a href="{% url 'closet:watch_draft' d.pk %}"><strong>{{ d.name|default:'Untitled' }}</strong>{% if d.price %} <span>{{ d.currency }} {{ d.price }}</span>{% endif %}</a>
+      <form method="post" action="{% url 'closet:watch_draft_discard' d.pk %}">{% csrf_token %}<button class="btn quiet">Discard</button></form>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="sub">Open one to check it and tap Save.</p>
+</section>
+{% endif %}
+
 {% if total %}
 <nav class="chips" aria-label="Status">
   {% for v, label in statuses %}<a href="?status={{ v }}{% if kind %}&kind={{ kind }}{% endif %}" {% if status == v %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
