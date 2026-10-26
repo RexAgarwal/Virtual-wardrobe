@@ -14,6 +14,16 @@ A personal digital closet. Photograph the clothes you own, build outfits from th
 - Works on photos of a single item and on photos of you wearing it (it removes the background and your skin). Where an arm or hand covered a worn piece, the gap is filled in by estimating the fabric around it, so that part is approximate.
 - Runs on your own computer with free models.
 
+**Perfumes**
+- A separate shelf for fragrances: name, brand, bottle photo, concentration, scent family, notes, best season and occasion, size, price, a 0-5 rating and a status (in use, wishlist, finished).
+- Search and filter by name, brand, note, family, season or status. Private to each account.
+
+**Watchlist**
+- Things you want to buy later: name, price, picture, a link to the shop, kind (clothes, shoes, perfume, anything), priority and notes. Shows what everything you're watching adds up to, per currency.
+- Paste a shop link and it tries to read the name, price and picture from the page. This works for some shops only; big ones like Amazon, Myntra, H&M and Zara often block it, and then you fill in the details yourself.
+- A **browser save button** (a bookmark you add once) works on any shop, including ones that block link reading: tap it on a product page and your own browser sends the name, price and picture to a draft you review and save. Each person's button has its own secret and can be reset.
+- "I bought it" moves clothes into your wardrobe and perfume onto your shelf, keeping the picture and price.
+
 **Outfits**
 - Pick pieces and save them as an outfit with an occasion (everyday, work, evening, special, travel, active).
 - Log "wore this" on any date to keep a wear history.
@@ -38,17 +48,7 @@ A personal digital closet. Photograph the clothes you own, build outfits from th
 - Known limits: crops are rectangles, it can't read brand names, and it sometimes names things wrongly or finds extras. You review everything before it's saved.
 
 ## Beta features
-Switched on only for admins and a few named users (see `WARDROBE_FEATURES` in settings).
-
-**Perfumes**
-- A separate shelf for fragrances: name, brand, bottle photo, concentration, scent family, notes, best season and occasion, size, price, a 0-5 rating and a status (in use, wishlist, finished).
-- Search and filter by name, brand, note, family, season or status. Private to each account.
-
-**Watchlist**
-- Things you want to buy later: name, price, picture, a link to the shop, kind (clothes, shoes, perfume, anything), priority and notes. Shows what everything you're watching adds up to, per currency.
-- Paste a shop link and it tries to read the name, price and picture from the page. This works for some shops only; big ones like Amazon, Myntra, H&M and Zara often block it, and then you fill in the details yourself.
-- A **browser save button** (a bookmark you add once) works on any shop, including ones that block link reading: tap it on a product page and your own browser sends the name, price and picture to a draft you review and save. Each person's button has its own secret and can be reset.
-- "I bought it" moves clothes into your wardrobe and perfume onto your shelf, keeping the picture and price.
+Switched on only for admins and a few named users (see `WARDROBE_FEATURES` in settings). Perfumes and Watchlist started here and are now open to everyone.
 
 **Try on**
 - Upload a full-body photo and see an outfit on you. Runs on your own computer with CatVTON and takes about 5 minutes per garment. Fine details can change.

@@ -2,7 +2,7 @@
 {% block title %}Watchlist{% endblock %}
 {% block content %}
 <section class="toolbar">
-  <div><h1>Watchlist <span class="beta">beta</span></h1><p class="sub">Things you want to buy later.{% if totals %} Everything you&rsquo;re watching: <strong>{{ totals|join:' + ' }}</strong>.{% endif %}</p></div>
+  <div><h1>Watchlist</h1><p class="sub">Things you want to buy later.{% if totals %} Everything you&rsquo;re watching: <strong>{{ totals|join:' + ' }}</strong>.{% endif %}</p></div>
   <div class="actions" style="margin:0"><a class="btn quiet" href="{% url 'closet:watch_button' %}">Browser save button</a><a class="btn primary" href="{% url 'closet:watch_add' %}">Add to watchlist</a></div>
 </section>
 

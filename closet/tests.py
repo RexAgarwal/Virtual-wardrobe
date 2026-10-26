@@ -451,10 +451,10 @@ class Perfumes(TestCase):
         self.assertEqual(statuses, {'himanshu': 200, 'boss': 200, 'pal': 404})
         self.client.force_login(self.pal)
         self.assertEqual(self.add().status_code, 404)
-        self.assertNotContains(self.client.get('/about/'), 'Perfumes <span')
+        self.assertNotContains(self.client.get('/about/'), '>Perfumes</a>')
 
     def test_menu_link_shows_for_beta_people(self):
-        self.assertContains(self.client.get('/about/'), 'Perfumes <span class="beta">')
+        self.assertContains(self.client.get('/about/'), '>Perfumes</a>')
 
     def test_add_view_edit_and_remove(self):
         from .models import Perfume
@@ -826,3 +826,36 @@ class BrowserSaveButton(TestCase):
         self.client.force_login(self.me)
         self.client.post(f'/watchlist/draft/{d.pk}/discard/')
         self.assertFalse(WatchDraft.objects.exists())
+
+
+class RolloutAsShipped(TestCase):
+    """Uses the real settings, not an override: Perfumes and Watchlist are open to everyone, Try on is still beta."""
+
+    def setUp(self):
+        self.pal = User.objects.create_user('pal', password='pw-pal-12345')
+        self.client.force_login(self.pal)
+
+    def test_everyone_gets_perfumes_and_the_watchlist_without_a_beta_tag(self):
+        for url in ('/perfumes/', '/watchlist/'):
+            page = self.client.get(url)
+            self.assertEqual(page.status_code, 200, url)
+            self.assertNotContains(page, 'class="beta"')
+        about = self.client.get('/about/')
+        self.assertContains(about, '>Perfumes</a>')
+        self.assertContains(about, '>Watchlist</a>')
+
+    def test_try_on_is_still_beta_only(self):
+        self.assertEqual(self.client.get('/try-on/').status_code, 404)
+        self.assertNotContains(self.client.get('/about/'), 'Try on <span')
+
+    def test_each_persons_things_stay_private_now_that_everyone_has_them(self):
+        from .models import Perfume, WatchItem
+        other = User.objects.create_user('other', password='pw-oth-12345')
+        mine = Perfume.objects.create(owner=self.pal, name='Mine')
+        theirs = Perfume.objects.create(owner=other, name='Theirs')
+        want = WatchItem.objects.create(owner=other, name='Their wish')
+        self.assertEqual([p.name for p in self.client.get('/perfumes/').context['perfumes']], ['Mine'])
+        self.assertEqual(self.client.get(f'/perfumes/{theirs.pk}/').status_code, 404)
+        self.assertEqual(list(self.client.get('/watchlist/?status=all').context['items']), [])
+        self.assertEqual(self.client.get(f'/watchlist/{want.pk}/').status_code, 404)
+        self.assertEqual(self.client.get(f'/perfumes/{mine.pk}/').status_code, 200)
